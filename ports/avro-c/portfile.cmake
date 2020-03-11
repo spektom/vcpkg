@@ -9,8 +9,9 @@ vcpkg_from_github(
   SHA512 6a6980901eea964c050eb3d61fadf28712e2f02c36985bf8e5176b668bba48985f6a666554a1964435448de29b18d790ab86b787d0288a22fd9cba00746a7846
   HEAD_REF master
   PATCHES
-        avro.patch          # Private vcpkg build fixes
-        snappy-pr-793.patch # Snappy build fixes for Windows (PR-793)
+        avro.patch              # Private vcpkg build fixes
+        snappy-pr-793.patch     # Snappy build fixes for Windows (PR-793)
+        logical-types-843.patch # Logical types support (PR-843)
 )
 
 vcpkg_configure_cmake(

@@ -1,0 +1,1662 @@
+diff -Nru avro-1.9.2.orig/lang/c/CMakeLists.txt avro-1.9.2/lang/c/CMakeLists.txt
+--- avro-1.9.2.orig/lang/c/CMakeLists.txt	2020-03-11 09:31:31.001169300 +0200
++++ avro-1.9.2/lang/c/CMakeLists.txt	2020-03-11 11:22:35.670354800 +0200
+@@ -188,6 +188,10 @@
+     message(FATAL_ERROR "libjansson >=2.3 not found")
+ endif (JANSSON_FOUND)
+ 
++set(MATH_LIBRARIES)
++if(NOT MSVC)
++    set(MATH_LIBRARIES m)
++endif(NOT MSVC)
+ 
+ add_subdirectory(src)
+ add_subdirectory(examples)
+diff -Nru avro-1.9.2.orig/lang/c/examples/quickstop.c avro-1.9.2/lang/c/examples/quickstop.c
+--- avro-1.9.2.orig/lang/c/examples/quickstop.c	2020-03-11 09:31:31.011168500 +0200
++++ avro-1.9.2/lang/c/examples/quickstop.c	2020-03-11 11:22:35.672355100 +0200
+@@ -56,10 +56,13 @@
+ {
+ 	avro_datum_t person = avro_record(person_schema);
+ 
+-	avro_datum_t id_datum = avro_int64(++id);
++	avro_schema_t id_schema = avro_schema_long();
++	avro_schema_t age_schema = avro_schema_int();
++
++	avro_datum_t id_datum = avro_int64(id_schema, ++id);
+ 	avro_datum_t first_datum = avro_string(first);
+ 	avro_datum_t last_datum = avro_string(last);
+-	avro_datum_t age_datum = avro_int32(age);
++	avro_datum_t age_datum = avro_int32(age_schema, age);
+ 	avro_datum_t phone_datum = avro_string(phone);
+ 
+ 	if (avro_record_set(person, "ID", id_datum)
+diff -Nru avro-1.9.2.orig/lang/c/examples/quickstop.c.orig avro-1.9.2/lang/c/examples/quickstop.c.orig
+--- avro-1.9.2.orig/lang/c/examples/quickstop.c.orig	1970-01-01 02:00:00.000000000 +0200
++++ avro-1.9.2/lang/c/examples/quickstop.c.orig	2020-03-11 11:22:28.178760300 +0200
+@@ -0,0 +1,223 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.
++ * The ASF licenses this file to you under the Apache License, Version 2.0
++ * (the "License"); you may not use this file except in compliance with
++ * the License.  You may obtain a copy of the License at
++ *
++ * https://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
++ * implied.  See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++#include <avro.h>
++#include <avro/platform.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++#ifdef DEFLATE_CODEC
++#define QUICKSTOP_CODEC  "deflate"
++#else
++#define QUICKSTOP_CODEC  "null"
++#endif
++
++avro_schema_t person_schema;
++int64_t id = 0;
++
++/* A simple schema for our tutorial */
++const char  PERSON_SCHEMA[] =
++"{\"type\":\"record\",\
++  \"name\":\"Person\",\
++  \"fields\":[\
++     {\"name\": \"ID\", \"type\": \"long\"},\
++     {\"name\": \"First\", \"type\": \"string\"},\
++     {\"name\": \"Last\", \"type\": \"string\"},\
++     {\"name\": \"Phone\", \"type\": \"string\"},\
++     {\"name\": \"Age\", \"type\": \"int\"}]}";
++
++/* Parse schema into a schema data structure */
++void init_schema(void)
++{
++	if (avro_schema_from_json_literal(PERSON_SCHEMA, &person_schema)) {
++		fprintf(stderr, "Unable to parse person schema\n");
++		exit(EXIT_FAILURE);
++	}
++}
++
++/* Create a datum to match the person schema and save it */
++void
++add_person(avro_file_writer_t db, const char *first, const char *last,
++	   const char *phone, int32_t age)
++{
++	avro_datum_t person = avro_record(person_schema);
++
++	avro_datum_t id_datum = avro_int64(++id);
++	avro_datum_t first_datum = avro_string(first);
++	avro_datum_t last_datum = avro_string(last);
++	avro_datum_t age_datum = avro_int32(age);
++	avro_datum_t phone_datum = avro_string(phone);
++
++	if (avro_record_set(person, "ID", id_datum)
++	    || avro_record_set(person, "First", first_datum)
++	    || avro_record_set(person, "Last", last_datum)
++	    || avro_record_set(person, "Age", age_datum)
++	    || avro_record_set(person, "Phone", phone_datum)) {
++		fprintf(stderr, "Unable to create Person datum structure\n");
++		exit(EXIT_FAILURE);
++	}
++
++	if (avro_file_writer_append(db, person)) {
++		fprintf(stderr,
++			"Unable to write Person datum to memory buffer\nMessage: %s\n", avro_strerror());
++		exit(EXIT_FAILURE);
++	}
++
++	/* Decrement all our references to prevent memory from leaking */
++	avro_datum_decref(id_datum);
++	avro_datum_decref(first_datum);
++	avro_datum_decref(last_datum);
++	avro_datum_decref(age_datum);
++	avro_datum_decref(phone_datum);
++	avro_datum_decref(person);
++
++	//fprintf(stdout, "Successfully added %s, %s id=%"PRId64"\n", last, first, id);
++}
++
++int print_person(avro_file_reader_t db, avro_schema_t reader_schema)
++{
++	int rval;
++	avro_datum_t person;
++
++	rval = avro_file_reader_read(db, reader_schema, &person);
++	if (rval == 0) {
++		int64_t i64;
++		int32_t i32;
++		char *p;
++		avro_datum_t id_datum, first_datum, last_datum, phone_datum,
++		    age_datum;
++
++		if (avro_record_get(person, "ID", &id_datum) == 0) {
++			avro_int64_get(id_datum, &i64);
++			fprintf(stdout, "%" PRId64 " | ", i64);
++		}
++		if (avro_record_get(person, "First", &first_datum) == 0) {
++			avro_string_get(first_datum, &p);
++			fprintf(stdout, "%15s | ", p);
++		}
++		if (avro_record_get(person, "Last", &last_datum) == 0) {
++			avro_string_get(last_datum, &p);
++			fprintf(stdout, "%15s | ", p);
++		}
++		if (avro_record_get(person, "Phone", &phone_datum) == 0) {
++			avro_string_get(phone_datum, &p);
++			fprintf(stdout, "%15s | ", p);
++		}
++		if (avro_record_get(person, "Age", &age_datum) == 0) {
++			avro_int32_get(age_datum, &i32);
++			fprintf(stdout, "%d", i32);
++		}
++		fprintf(stdout, "\n");
++
++		/* We no longer need this memory */
++		avro_datum_decref(person);
++	}
++	return rval;
++}
++
++int main(void)
++{
++	int rval;
++	avro_file_reader_t dbreader;
++	avro_file_writer_t db;
++	avro_schema_t projection_schema, first_name_schema, phone_schema;
++	int64_t i;
++	const char *dbname = "quickstop.db";
++	char number[15] = {0};
++
++	/* Initialize the schema structure from JSON */
++	init_schema();
++
++	/* Delete the database if it exists */
++	remove(dbname);
++	/* Create a new database */
++	rval = avro_file_writer_create_with_codec
++	    (dbname, person_schema, &db, QUICKSTOP_CODEC, 0);
++	if (rval) {
++		fprintf(stderr, "There was an error creating %s\n", dbname);
++		fprintf(stderr, " error message: %s\n", avro_strerror());
++		exit(EXIT_FAILURE);
++	}
++
++	/* Add lots of people to the database */
++	for (i = 0; i < 1000; i++)
++	{
++		sprintf(number, "(%d)", (int)i);
++		add_person(db, "Dante", "Hicks", number, 32);
++		add_person(db, "Randal", "Graves", "(555) 123-5678", 30);
++		add_person(db, "Veronica", "Loughran", "(555) 123-0987", 28);
++		add_person(db, "Caitlin", "Bree", "(555) 123-2323", 27);
++		add_person(db, "Bob", "Silent", "(555) 123-6422", 29);
++		add_person(db, "Jay", "???", number, 26);
++	}
++
++	/* Close the block and open a new one */
++	avro_file_writer_flush(db);
++	add_person(db, "Super", "Man", "123456", 31);
++
++	avro_file_writer_close(db);
++
++	fprintf(stdout, "\nNow let's read all the records back out\n");
++
++	/* Read all the records and print them */
++	if (avro_file_reader(dbname, &dbreader)) {
++		fprintf(stderr, "Error opening file: %s\n", avro_strerror());
++		exit(EXIT_FAILURE);
++	}
++	for (i = 0; i < id; i++) {
++		if (print_person(dbreader, NULL)) {
++			fprintf(stderr, "Error printing person\nMessage: %s\n", avro_strerror());
++			exit(EXIT_FAILURE);
++		}
++	}
++	avro_file_reader_close(dbreader);
++
++	/* You can also use projection, to only decode only the data you are
++	   interested in.  This is particularly useful when you have 
++	   huge data sets and you'll only interest in particular fields
++	   e.g. your contacts First name and phone number */
++	projection_schema = avro_schema_record("Person", NULL);
++	first_name_schema = avro_schema_string();
++	phone_schema = avro_schema_string();
++	avro_schema_record_field_append(projection_schema, "First",
++					first_name_schema);
++	avro_schema_record_field_append(projection_schema, "Phone",
++					phone_schema);
++
++	/* Read only the record you're interested in */
++	fprintf(stdout,
++		"\n\nUse projection to print only the First name and phone numbers\n");
++	if (avro_file_reader(dbname, &dbreader)) {
++		fprintf(stderr, "Error opening file: %s\n", avro_strerror());
++		exit(EXIT_FAILURE);
++	}
++	for (i = 0; i < id; i++) {
++		if (print_person(dbreader, projection_schema)) {
++			fprintf(stderr, "Error printing person: %s\n",
++				avro_strerror());
++			exit(EXIT_FAILURE);
++		}
++	}
++	avro_file_reader_close(dbreader);
++	avro_schema_decref(first_name_schema);
++	avro_schema_decref(phone_schema);
++	avro_schema_decref(projection_schema);
++
++	/* We don't need this schema anymore */
++	avro_schema_decref(person_schema);
++	return 0;
++}
+diff -Nru avro-1.9.2.orig/lang/c/src/CMakeLists.txt avro-1.9.2/lang/c/src/CMakeLists.txt
+--- avro-1.9.2.orig/lang/c/src/CMakeLists.txt	2020-03-11 09:31:31.090146700 +0200
++++ avro-1.9.2/lang/c/src/CMakeLists.txt	2020-03-11 11:22:35.674355600 +0200
+@@ -29,6 +29,7 @@
+     avro/generic.h
+     avro/io.h
+     avro/legacy.h
++    avro/logical.h
+     avro/refcount.h
+     avro/resolver.h
+     avro/schema.h
+@@ -85,13 +86,13 @@
+ string(REPLACE ":" "." LIBAVRO_DOT_VERSION ${LIBAVRO_VERSION})
+ 
+ add_library(avro-static STATIC ${AVRO_SRC})
+-target_link_libraries(avro-static ${JANSSON_LIBRARIES} ${CODEC_LIBRARIES} ${THREADS_LIBRARIES})
++target_link_libraries(avro-static ${JANSSON_LIBRARIES} ${CODEC_LIBRARIES} ${THREADS_LIBRARIES} ${MATH_LIBRARIES})
+ set_target_properties(avro-static PROPERTIES OUTPUT_NAME avro)
+ 
+ if (NOT WIN32)
+ # TODO: Create Windows DLLs. See https://www.cmake.org/Wiki/BuildingWinDLL
+ add_library(avro-shared SHARED ${AVRO_SRC})
+-target_link_libraries(avro-shared ${JANSSON_LIBRARIES} ${CODEC_LIBRARIES} ${THREADS_LIBRARIES})
++target_link_libraries(avro-shared ${JANSSON_LIBRARIES} ${CODEC_LIBRARIES} ${THREADS_LIBRARIES} ${MATH_LIBRARIES})
+ set_target_properties(avro-shared PROPERTIES
+         OUTPUT_NAME avro
+         VERSION ${LIBAVRO_DOT_VERSION}
+diff -Nru avro-1.9.2.orig/lang/c/src/avro/legacy.h avro-1.9.2/lang/c/src/avro/legacy.h
+--- avro-1.9.2.orig/lang/c/src/avro/legacy.h	2020-03-11 09:31:31.041174100 +0200
++++ avro-1.9.2/lang/c/src/avro/legacy.h	2020-03-11 11:22:35.675356500 +0200
+@@ -70,11 +70,11 @@
+ avro_datum_t avro_string(const char *str);
+ avro_datum_t avro_givestring(const char *str,
+ 			     avro_free_func_t free);
+-avro_datum_t avro_bytes(const char *buf, int64_t len);
+-avro_datum_t avro_givebytes(const char *buf, int64_t len,
++avro_datum_t avro_bytes(avro_schema_t schema, const char *buf, int64_t len);
++avro_datum_t avro_givebytes(avro_schema_t schema, const char *buf, int64_t len,
+ 			    avro_free_func_t free);
+-avro_datum_t avro_int32(int32_t i);
+-avro_datum_t avro_int64(int64_t l);
++avro_datum_t avro_int32(avro_schema_t schema, int32_t i);
++avro_datum_t avro_int64(avro_schema_t schema, int64_t l);
+ avro_datum_t avro_float(float f);
+ avro_datum_t avro_double(double d);
+ avro_datum_t avro_boolean(int8_t i);
+diff -Nru avro-1.9.2.orig/lang/c/src/avro/logical.h avro-1.9.2/lang/c/src/avro/logical.h
+--- avro-1.9.2.orig/lang/c/src/avro/logical.h	1970-01-01 02:00:00.000000000 +0200
++++ avro-1.9.2/lang/c/src/avro/logical.h	2020-03-11 11:22:35.676355200 +0200
+@@ -0,0 +1,46 @@
++/*
++ * Licensed to the Apache Software Foundation (ASF) under one or more
++ * contributor license agreements.  See the NOTICE file distributed with
++ * this work for additional information regarding copyright ownership.
++ * The ASF licenses this file to you under the Apache License, Version 2.0
++ * (the "License"); you may not use this file except in compliance with
++ * the License.  You may obtain a copy of the License at
++ *
++ * https://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
++ * implied.  See the License for the specific language governing
++ * permissions and limitations under the License.
++ */
++
++#ifndef AVRO_LOGICAL_H
++#define AVRO_LOGICAL_H
++#ifdef __cplusplus
++extern "C" {
++#define CLOSE_EXTERN }
++#else
++#define CLOSE_EXTERN
++#endif
++
++enum avro_logical_type_t {
++  AVRO_LOGICAL_TYPE_NONE,
++  AVRO_DECIMAL,
++  AVRO_DATE,
++  AVRO_TIME_MILLIS,
++  AVRO_TIME_MICROS,
++  AVRO_TIMESTAMP_MILLIS,
++  AVRO_TIMESTAMP_MICROS,
++  AVRO_DURATION
++};
++typedef enum avro_logical_type_t avro_logical_type_t;
++
++typedef struct {
++  avro_logical_type_t type;
++  int precision;
++  int scale; 
++} avro_logical_schema_t;
++
++CLOSE_EXTERN
++#endif
+diff -Nru avro-1.9.2.orig/lang/c/src/avro/schema.h avro-1.9.2/lang/c/src/avro/schema.h
+--- avro-1.9.2.orig/lang/c/src/avro/schema.h	2020-03-11 09:31:31.032174100 +0200
++++ avro-1.9.2/lang/c/src/avro/schema.h	2020-03-11 11:22:35.678354100 +0200
+@@ -28,6 +28,7 @@
+ #include <stdlib.h>
+ 
+ #include <avro/basics.h>
++#include <avro/logical.h>
+ 
+ typedef struct avro_obj_t *avro_schema_t;
+ 
+@@ -118,5 +119,8 @@
+ int avro_schema_match(avro_schema_t writers_schema,
+ 		      avro_schema_t readers_schema);
+ 
++/* Returns logical schema or NULL if not defined */
++avro_logical_schema_t *avro_logical_schema(avro_schema_t schema);
++
+ CLOSE_EXTERN
+ #endif
+diff -Nru avro-1.9.2.orig/lang/c/src/datafile.c avro-1.9.2/lang/c/src/datafile.c
+--- avro-1.9.2.orig/lang/c/src/datafile.c	2020-03-11 09:31:31.068170100 +0200
++++ avro-1.9.2/lang/c/src/datafile.c	2020-03-11 11:22:35.679357300 +0200
+@@ -273,6 +273,7 @@
+ 		return EILSEQ;
+ 	}
+ 	avro_schema_decref(meta_schema);
++	avro_schema_decref(meta_values_schema);
+ 
+ 	rval = avro_value_get_by_name(&meta, "avro.codec", &codec_val, NULL);
+ 	if (rval) {
+diff -Nru avro-1.9.2.orig/lang/c/src/datum.c avro-1.9.2/lang/c/src/datum.c
+--- avro-1.9.2.orig/lang/c/src/datum.c	2020-03-11 09:31:31.018143900 +0200
++++ avro-1.9.2/lang/c/src/datum.c	2020-03-11 11:22:35.680386400 +0200
+@@ -136,8 +136,9 @@
+ 	return avro_string_set_private(datum, p, size, free);
+ }
+ 
+-static avro_datum_t avro_bytes_private(char *bytes, int64_t size,
+-				       avro_free_func_t bytes_free)
++static avro_datum_t avro_bytes_private(avro_schema_t schema,
++                                       char *bytes, int64_t size,
++                                       avro_free_func_t bytes_free)
+ {
+ 	struct avro_bytes_datum_t *datum;
+ 	datum = (struct avro_bytes_datum_t *) avro_new(struct avro_bytes_datum_t);
+@@ -145,6 +146,7 @@
+ 		avro_set_error("Cannot create new bytes datum");
+ 		return NULL;
+ 	}
++	datum->schema = avro_schema_incref(schema);
+ 	datum->bytes = bytes;
+ 	datum->size = size;
+ 	datum->free = bytes_free;
+@@ -153,7 +155,8 @@
+ 	return &datum->obj;
+ }
+ 
+-avro_datum_t avro_bytes(const char *bytes, int64_t size)
++avro_datum_t avro_bytes(avro_schema_t schema,
++                        const char *bytes, int64_t size)
+ {
+ 	char *bytes_copy = (char *) avro_malloc(size);
+ 	if (!bytes_copy) {
+@@ -162,17 +165,19 @@
+ 	}
+ 	memcpy(bytes_copy, bytes, size);
+ 	avro_datum_t  result =
+-		avro_bytes_private(bytes_copy, size, avro_alloc_free_func);
++		avro_bytes_private(schema, bytes_copy, size,
++                       avro_alloc_free_func);
+ 	if (result == NULL) {
+ 		avro_free(bytes_copy, size);
+ 	}
+ 	return result;
+ }
+ 
+-avro_datum_t avro_givebytes(const char *bytes, int64_t size,
+-			    avro_free_func_t free)
++avro_datum_t avro_givebytes(avro_schema_t schema,
++                            const char *bytes, int64_t size,
++                            avro_free_func_t free)
+ {
+-	return avro_bytes_private((char *)bytes, size, free);
++	return avro_bytes_private(schema, (char *)bytes, size, free);
+ }
+ 
+ static int avro_bytes_set_private(avro_datum_t datum, const char *bytes,
+@@ -227,7 +232,8 @@
+ 	return 0;
+ }
+ 
+-avro_datum_t avro_int32(int32_t i)
++avro_datum_t avro_int32(avro_schema_t schema,
++                        int32_t i)
+ {
+ 	struct avro_int32_datum_t *datum =
+ 	    (struct avro_int32_datum_t *) avro_new(struct avro_int32_datum_t);
+@@ -235,6 +241,7 @@
+ 		avro_set_error("Cannot create new int datum");
+ 		return NULL;
+ 	}
++	datum->schema = avro_schema_incref(schema);
+ 	datum->i32 = i;
+ 
+ 	avro_datum_init(&datum->obj, AVRO_INT32);
+@@ -260,7 +267,8 @@
+ 	return 0;
+ }
+ 
+-avro_datum_t avro_int64(int64_t l)
++avro_datum_t avro_int64(avro_schema_t schema,
++                        int64_t l)
+ {
+ 	struct avro_int64_datum_t *datum =
+ 	    (struct avro_int64_datum_t *) avro_new(struct avro_int64_datum_t);
+@@ -268,6 +276,7 @@
+ 		avro_set_error("Cannot create new long datum");
+ 		return NULL;
+ 	}
++	datum->schema = avro_schema_incref(schema);
+ 	datum->i64 = l;
+ 
+ 	avro_datum_init(&datum->obj, AVRO_INT64);
+@@ -982,24 +991,6 @@
+ 				avro_schema_decref(result);
+ 				return result;
+ 			}
+-		case AVRO_BYTES:
+-			{
+-				avro_schema_t  result = avro_schema_bytes();
+-				avro_schema_decref(result);
+-				return result;
+-			}
+-		case AVRO_INT32:
+-			{
+-				avro_schema_t  result = avro_schema_int();
+-				avro_schema_decref(result);
+-				return result;
+-			}
+-		case AVRO_INT64:
+-			{
+-				avro_schema_t  result = avro_schema_long();
+-				avro_schema_decref(result);
+-				return result;
+-			}
+ 		case AVRO_FLOAT:
+ 			{
+ 				avro_schema_t  result = avro_schema_float();
+@@ -1037,6 +1028,12 @@
+ 			return avro_datum_to_array(datum)->schema;
+ 		case AVRO_UNION:
+ 			return avro_datum_to_union(datum)->schema;
++		case AVRO_INT32:
++			return avro_datum_to_int32(datum)->schema;
++		case AVRO_INT64:
++			return avro_datum_to_int64(datum)->schema;
++		case AVRO_BYTES:
++			return avro_datum_to_bytes(datum)->schema;
+ 
+ 		default:
+ 			return NULL;
+@@ -1062,14 +1059,21 @@
+ 				if (bytes->free) {
+ 					bytes->free(bytes->bytes, bytes->size);
+ 				}
++				avro_schema_decref(bytes->schema);
+ 				avro_freet(struct avro_bytes_datum_t, bytes);
+ 			}
+ 			break;
+ 		case AVRO_INT32:{
++				struct avro_int32_datum_t *int_datum;
++				int_datum = avro_datum_to_int32(datum);
++				avro_schema_decref(int_datum->schema);
+ 				avro_freet(struct avro_int32_datum_t, datum);
+ 			}
+ 			break;
+ 		case AVRO_INT64:{
++				struct avro_int64_datum_t *long_datum;
++				long_datum = avro_datum_to_int64(datum);
++				avro_schema_decref(long_datum->schema);
+ 				avro_freet(struct avro_int64_datum_t, datum);
+ 			}
+ 			break;
+diff -Nru avro-1.9.2.orig/lang/c/src/datum.h avro-1.9.2/lang/c/src/datum.h
+--- avro-1.9.2.orig/lang/c/src/datum.h	2020-03-11 09:31:31.061143900 +0200
++++ avro-1.9.2/lang/c/src/datum.h	2020-03-11 11:22:35.681385100 +0200
+@@ -34,6 +34,7 @@
+ 
+ struct avro_bytes_datum_t {
+ 	struct avro_obj_t obj;
++	avro_schema_t schema;
+ 	char *bytes;
+ 	int64_t size;
+ 	avro_free_func_t  free;
+@@ -41,11 +42,13 @@
+ 
+ struct avro_int32_datum_t {
+ 	struct avro_obj_t obj;
++	avro_schema_t schema;
+ 	int32_t i32;
+ };
+ 
+ struct avro_int64_datum_t {
+ 	struct avro_obj_t obj;
++	avro_schema_t schema;
+ 	int64_t i64;
+ };
+ 
+diff -Nru avro-1.9.2.orig/lang/c/src/schema.c avro-1.9.2/lang/c/src/schema.c
+--- avro-1.9.2.orig/lang/c/src/schema.c	2020-03-11 09:31:31.020173400 +0200
++++ avro-1.9.2/lang/c/src/schema.c	2020-03-11 11:22:35.683356000 +0200
+@@ -27,6 +27,7 @@
+ #include <string.h>
+ #include <errno.h>
+ #include <ctype.h>
++#include <math.h>
+ 
+ #include "jansson.h"
+ #include "st.h"
+@@ -119,16 +120,43 @@
+ 	if (is_avro_schema(schema)) {
+ 		switch (avro_typeof(schema)) {
+ 		case AVRO_STRING:
+-		case AVRO_BYTES:
+-		case AVRO_INT32:
+-		case AVRO_INT64:
+ 		case AVRO_FLOAT:
+ 		case AVRO_DOUBLE:
+ 		case AVRO_BOOLEAN:
+ 		case AVRO_NULL:
+-			/* no memory allocated for primitives */
++			/* no memory allocated for these primitives */
+ 			return;
+ 
++		case AVRO_BYTES:{
++				struct avro_bytes_schema_t *bytes;
++				bytes = avro_schema_to_bytes(schema);
++				if (bytes->logical_type) {
++					avro_freet(avro_logical_schema_t, bytes->logical_type);
++				}
++				avro_freet(struct avro_bytes_schema_t, bytes);
++			}
++			break;
++
++		case AVRO_INT32:{
++				struct avro_int_schema_t *int_schema;
++				int_schema = avro_schema_to_int(schema);
++				if (int_schema->logical_type) {
++					avro_freet(avro_logical_schema_t, int_schema->logical_type);
++				}
++				avro_freet(struct avro_int_schema_t, int_schema);
++			}
++			break;
++
++		case AVRO_INT64:{
++				struct avro_long_schema_t *long_schema;
++				long_schema = avro_schema_to_long(schema);
++				if (long_schema->logical_type) {
++					avro_freet(avro_logical_schema_t, long_schema->logical_type);
++				}
++				avro_freet(struct avro_long_schema_t, long_schema);
++			}
++			break;
++
+ 		case AVRO_RECORD:{
+ 				struct avro_record_schema_t *record;
+ 				record = avro_schema_to_record(schema);
+@@ -166,6 +194,9 @@
+ 				if (fixed->space) {
+ 					avro_str_free((char *) fixed->space);
+ 				}
++				if (fixed->logical_type) {
++					avro_freet(avro_logical_schema_t, fixed->logical_type);
++				}
+ 				avro_freet(struct avro_fixed_schema_t, fixed);
+ 			}
+ 			break;
+@@ -231,6 +262,19 @@
+ 	return 1;
+ }
+ 
++static avro_logical_schema_t*
++avro_logical_schema_init(avro_logical_type_t type,
++		int precision,
++		int scale)
++{
++	avro_logical_schema_t *logical_schema =
++			(avro_logical_schema_t *) avro_new(avro_logical_schema_t);
++	logical_schema->type = type;
++	logical_schema->precision = precision;
++	logical_schema->scale = scale;
++	return logical_schema;
++}
++
+ avro_schema_t avro_schema_string(void)
+ {
+ 	static struct avro_obj_t obj = {
+@@ -243,32 +287,41 @@
+ 
+ avro_schema_t avro_schema_bytes(void)
+ {
+-	static struct avro_obj_t obj = {
+-		AVRO_BYTES,
+-		AVRO_SCHEMA,
+-		1
+-	};
+-	return avro_schema_incref(&obj);
++	struct avro_bytes_schema_t *bytes =
++			(struct avro_bytes_schema_t *) avro_new(struct avro_bytes_schema_t);
++	if (!bytes) {
++		avro_set_error("Cannot allocate new bytes schema");
++		return NULL;
++	}
++	bytes->logical_type = NULL;
++	avro_schema_init(&bytes->obj, AVRO_BYTES);
++	return &bytes->obj;
+ }
+ 
+ avro_schema_t avro_schema_int(void)
+ {
+-	static struct avro_obj_t obj = {
+-		AVRO_INT32,
+-		AVRO_SCHEMA,
+-		1
+-	};
+-	return avro_schema_incref(&obj);
++	struct avro_int_schema_t *int_schema =
++			(struct avro_int_schema_t *) avro_new(struct avro_int_schema_t);
++	if (!int_schema) {
++		avro_set_error("Cannot allocate new int schema");
++		return NULL;
++	}
++	int_schema->logical_type = NULL;
++	avro_schema_init(&int_schema->obj, AVRO_INT32);
++	return &int_schema->obj;
+ }
+ 
+ avro_schema_t avro_schema_long(void)
+ {
+-	static struct avro_obj_t obj = {
+-		AVRO_INT64,
+-		AVRO_SCHEMA,
+-		1
+-	};
+-	return avro_schema_incref(&obj);
++	struct avro_long_schema_t *long_schema =
++			(struct avro_long_schema_t *) avro_new(struct avro_long_schema_t);
++	if (!long_schema) {
++		avro_set_error("Cannot allocate new long schema");
++		return NULL;
++	}
++	long_schema->logical_type = NULL;
++	avro_schema_init(&long_schema->obj, AVRO_INT64);
++	return &long_schema->obj;
+ }
+ 
+ avro_schema_t avro_schema_float(void)
+@@ -344,6 +397,7 @@
+ 		return NULL;
+ 	}
+ 	fixed->size = size;
++  fixed->logical_type = NULL;
+ 	avro_schema_init(&fixed->obj, AVRO_FIXED);
+ 	return &fixed->obj;
+ }
+@@ -873,6 +927,67 @@
+ }
+ 
+ static int
++avro_logical_schema_from_json(json_t *json, avro_logical_schema_t **schema)
++{
++	json_t *json_logical_type = json_object_get(json, "logicalType");
++
++	if (!json_logical_type) {
++		*schema = NULL;
++		return 0;
++	}
++
++	if (!json_is_string(json_logical_type)) {
++		avro_set_error("\"logicalType\" field must be a string");
++		return EINVAL;
++	}
++
++	avro_logical_type_t type;
++	int precision = 0;
++	int scale = 0;
++	const char *logical_type = json_string_value(json_logical_type);
++
++	if (strcmp(logical_type, "decimal") == 0) {
++		type = AVRO_DECIMAL;
++
++		json_t *json_precision = json_object_get(json, "precision");
++		if (!json_is_number(json_precision)) {
++			avro_set_error("\"precision\" must be set for decimal logical type");
++			return EINVAL;
++		}
++		precision = json_number_value(json_precision);
++
++		json_t *json_scale = json_object_get(json, "scale");
++		if (json_is_number(json_scale)) {
++			scale = json_number_value(json_scale);
++			if (scale > precision) {
++				avro_set_error("Decimal scale cannot exceeed precision");
++				return EINVAL;
++			}
++		} else {
++			scale = 0;
++		}
++	} else if (strcmp(logical_type, "date") == 0) {
++		type = AVRO_DATE;
++	} else if (strcmp(logical_type, "time-millis") == 0) {
++		type = AVRO_TIME_MILLIS;
++	} else if (strcmp(logical_type, "time-micros") == 0) {
++		type = AVRO_TIME_MICROS;
++	} else if (strcmp(logical_type, "timestamp-millis") == 0) {
++		type = AVRO_TIMESTAMP_MILLIS;
++	} else if (strcmp(logical_type, "timestamp-micros") == 0) {
++		type = AVRO_TIMESTAMP_MICROS;
++	} else if (strcmp(logical_type, "duration") == 0) {
++		type = AVRO_DURATION;
++	} else {
++		avro_set_error("Unknown Avro \"logicalType\": %s", logical_type);
++		return EINVAL;
++	}
++
++	*schema = avro_logical_schema_init(type, precision, scale);
++	return 0;
++}
++
++static int
+ avro_schema_from_json_t(json_t *json, avro_schema_t *schema,
+ 			st_table *named_schemas, const char *parent_namespace)
+ {
+@@ -887,6 +1002,7 @@
+ 	avro_type_t type = (avro_type_t) 0;
+ 	unsigned int i;
+ 	avro_schema_t named_type = NULL;
++  avro_logical_schema_t *logical_schema = NULL;
+ 
+ 	if (avro_type_from_json_t(json, &type, named_schemas, &named_type, parent_namespace)) {
+ 		return EINVAL;
+@@ -903,14 +1019,57 @@
+ 
+ 	case AVRO_BYTES:
+ 		*schema = avro_schema_bytes();
++
++		// parse logical schema if any
++		if (avro_logical_schema_from_json(json, &logical_schema)) {
++			avro_schema_decref(*schema);
++			return EINVAL;
++		}
++		if (logical_schema && logical_schema->type != AVRO_DECIMAL) {
++			avro_schema_decref(*schema);
++      avro_freet(avro_logical_schema_t, logical_schema);
++			avro_set_error("Bytes type can only be annotated with \"decimal\" logical type");
++			return EINVAL;
++		}
++		avro_schema_to_bytes(*schema)->logical_type = logical_schema;
+ 		break;
+ 
+ 	case AVRO_INT32:
+ 		*schema = avro_schema_int();
++
++		// parse logical schema if any
++		if (avro_logical_schema_from_json(json, &logical_schema)) {
++			avro_schema_decref(*schema);
++			return EINVAL;
++		}
++		if (logical_schema && logical_schema->type != AVRO_DATE
++				&& logical_schema->type != AVRO_TIME_MILLIS) {
++			avro_schema_decref(*schema);
++      avro_freet(avro_logical_schema_t, logical_schema);
++			avro_set_error("Int type can only be annotated with \"date\" or \"time-millis\" logical types");
++			return EINVAL;
++		}
++		avro_schema_to_int(*schema)->logical_type = logical_schema;
+ 		break;
+ 
+ 	case AVRO_INT64:
+ 		*schema = avro_schema_long();
++
++		// parse logical schema if any
++		if (avro_logical_schema_from_json(json, &logical_schema)) {
++			avro_schema_decref(*schema);
++			return EINVAL;
++		}
++		if (logical_schema
++				&& logical_schema->type != AVRO_TIME_MICROS
++				&& logical_schema->type != AVRO_TIMESTAMP_MILLIS
++				&& logical_schema->type != AVRO_TIMESTAMP_MICROS) {
++			avro_schema_decref(*schema);
++      avro_freet(avro_logical_schema_t, logical_schema);
++			avro_set_error("Int type can only be annotated with \"time-micros\", \"timestamp-millis\" or \"timestamp-micros\" logical types");
++			return EINVAL;
++		}
++		avro_schema_to_long(*schema)->logical_type = logical_schema;
+ 		break;
+ 
+ 	case AVRO_FLOAT:
+@@ -1207,6 +1366,37 @@
+ 			if (*schema == NULL) {
+ 				return ENOMEM;
+ 			}
++
++			// parse logical schema if any
++			if (avro_logical_schema_from_json(json, &logical_schema)) {
++				avro_schema_decref(*schema);
++				return EINVAL;
++			}
++			if (logical_schema) {
++				if (logical_schema->type == AVRO_DECIMAL) {
++					int64_t max_precision = floor(log10(pow(2.0, 8.0 * ((int64_t) size) - 1) - 1));
++					if (logical_schema->precision > max_precision) {
++						avro_schema_decref(*schema);
++						avro_freet(avro_logical_schema_t, logical_schema);
++						avro_set_error("Decimal precision is too large for fixed type of this size");
++						return EINVAL;
++					}
++				} else if (logical_schema->type == AVRO_DURATION) {
++					if ((int64_t) size != 12) {
++						avro_schema_decref(*schema);
++						avro_freet(avro_logical_schema_t, logical_schema);
++						avro_set_error("Duration logical type can only annotate fixed type of size 12");
++						return EINVAL;
++					}
++				} else {
++					avro_schema_decref(*schema);
++					avro_freet(avro_logical_schema_t, logical_schema);
++					avro_set_error("Fixed type can only be annotated with \"decimal\" or \"duration\" logical types");
++					return EINVAL;
++				}
++			}
++			avro_schema_to_fixed(*schema)->logical_type = logical_schema;
++
+ 			if (save_named_schemas(*schema, named_schemas)) {
+ 				avro_set_error("Cannot save fixed schema");
+ 				return ENOMEM;
+@@ -1292,6 +1482,17 @@
+ 	return avro_schema_from_json_root(root, schema);
+ }
+ 
++avro_logical_schema_t*
++avro_logical_schema_copy(avro_logical_schema_t *logical_schema)
++{
++	if (!logical_schema) {
++		return NULL;
++	}
++
++	return avro_logical_schema_init(logical_schema->type, logical_schema->precision,
++						logical_schema->scale);
++}
++
+ avro_schema_t avro_schema_copy_root(avro_schema_t schema, st_table *named_schemas)
+ {
+ 	long i;
+@@ -1301,19 +1502,49 @@
+ 	}
+ 	switch (avro_typeof(schema)) {
+ 	case AVRO_STRING:
+-	case AVRO_BYTES:
+-	case AVRO_INT32:
+-	case AVRO_INT64:
+ 	case AVRO_FLOAT:
+ 	case AVRO_DOUBLE:
+ 	case AVRO_BOOLEAN:
+ 	case AVRO_NULL:
+ 		/*
+-		 * No need to copy primitives since they're static
++		 * No need to copy these primitives since they're static
+ 		 */
+ 		new_schema = schema;
+ 		break;
+ 
++	case AVRO_BYTES:
++		{
++			struct avro_bytes_schema_t *bytes_schema =
++			    avro_schema_to_bytes(schema);
++			new_schema = avro_schema_bytes();
++
++			avro_schema_to_bytes(new_schema)->logical_type =
++				avro_logical_schema_copy(bytes_schema->logical_type);
++		}
++		break;
++
++	case AVRO_INT32:
++		{
++			struct avro_int_schema_t *int_schema =
++			    avro_schema_to_int(schema);
++			new_schema = avro_schema_int();
++
++			avro_schema_to_int(new_schema)->logical_type =
++				avro_logical_schema_copy(int_schema->logical_type);
++		}
++		break;
++
++	case AVRO_INT64:
++		{
++			struct avro_long_schema_t *long_schema =
++			    avro_schema_to_long(schema);
++			new_schema = avro_schema_long();
++
++			avro_schema_to_long(new_schema)->logical_type =
++				avro_logical_schema_copy(long_schema->logical_type);
++		}
++		break;
++
+ 	case AVRO_RECORD:
+ 		{
+ 			struct avro_record_schema_t *record_schema =
+@@ -1371,6 +1602,10 @@
+ 			    avro_schema_fixed_ns(fixed_schema->name,
+ 					         fixed_schema->space,
+ 					         fixed_schema->size);
++
++			avro_schema_to_fixed(new_schema)->logical_type =
++				avro_logical_schema_copy(fixed_schema->logical_type);
++
+  			if (save_named_schemas(new_schema, named_schemas)) {
+  				avro_set_error("Cannot save fixed schema");
+  				return NULL;
+@@ -1593,6 +1828,29 @@
+ 	return NULL;
+ }
+ 
++const char *avro_logical_type_name(const avro_logical_schema_t *logical_schema)
++{
++	switch(logical_schema->type) {
++		case AVRO_DECIMAL:
++			return "decimal";
++		case AVRO_DATE:
++			return "date";
++		case AVRO_TIME_MILLIS:
++			return "time-millis";
++		case AVRO_TIME_MICROS:
++			return "time-micros";
++		case AVRO_TIMESTAMP_MILLIS:
++			return "timestamp-millis";
++		case AVRO_TIMESTAMP_MICROS:
++			return "timestamp-micros";
++		case AVRO_DURATION:
++			return "duration";
++    default:
++      avro_set_error("Unknown logical type");
++      return NULL;
++	}
++}
++
+ avro_datum_t avro_datum_from_schema(const avro_schema_t schema)
+ {
+ 	check_param(NULL, is_avro_schema(schema), "schema");
+@@ -1602,13 +1860,13 @@
+ 			return avro_givestring("", NULL);
+ 
+ 		case AVRO_BYTES:
+-			return avro_givebytes("", 0, NULL);
++			return avro_givebytes(schema, "", 0, NULL);
+ 
+ 		case AVRO_INT32:
+-			return avro_int32(0);
++			return avro_int32(schema, 0);
+ 
+ 		case AVRO_INT64:
+-			return avro_int64(0);
++			return avro_int64(schema, 0);
+ 
+ 		case AVRO_FLOAT:
+ 			return avro_float(0);
+@@ -1684,6 +1942,35 @@
+ 	return avro_write(out, (char *)str, strlen(str));
+ }
+ 
++static int avro_write_int(avro_writer_t out, int num)
++{
++	char buf[12];
++	snprintf(buf, sizeof(buf), "%d", num);
++	return avro_write_str(out, buf);
++}
++
++static int write_logical_schema(avro_writer_t out,
++		       const avro_logical_schema_t *logical_schema)
++{
++	if (logical_schema == NULL || logical_schema->type == AVRO_LOGICAL_TYPE_NONE) {
++		return 0;
++	}
++
++	int rval;
++	check(rval, avro_write_str(out, ",\"logicalType\":\""));
++	check(rval, avro_write_str(out, avro_logical_type_name(logical_schema)));
++	check(rval, avro_write_str(out, "\""));
++	if (logical_schema->type == AVRO_DECIMAL) {
++		check(rval, avro_write_str(out, ",\"precision\":"));
++		check(rval, avro_write_int(out, logical_schema->precision));
++		if (logical_schema->scale > 0) {
++			check(rval, avro_write_str(out, ",\"scale\":"));
++			check(rval, avro_write_int(out, logical_schema->scale));
++		}
++	}
++	return rval;
++}
++
+ static int write_field(avro_writer_t out, const struct avro_record_field_t *field,
+ 		       const char *parent_namespace)
+ {
+@@ -1777,6 +2064,7 @@
+ 	check(rval, avro_write_str(out, "\"size\":"));
+ 	snprintf(size, sizeof(size), "%" PRId64, fixed->size);
+ 	check(rval, avro_write_str(out, size));
++	check(rval, write_logical_schema(out, fixed->logical_type));
+ 	return avro_write_str(out, "}");
+ }
+ 
+@@ -1843,17 +2131,22 @@
+ 		check(rval, avro_write_str(out, "{\"type\":\""));
+ 	}
+ 
++	avro_logical_schema_t *logical_schema = NULL;
++
+ 	switch (avro_typeof(schema)) {
+ 	case AVRO_STRING:
+ 		check(rval, avro_write_str(out, "string"));
+ 		break;
+ 	case AVRO_BYTES:
++		logical_schema = avro_schema_to_bytes(schema)->logical_type;
+ 		check(rval, avro_write_str(out, "bytes"));
+ 		break;
+ 	case AVRO_INT32:
++		logical_schema = avro_schema_to_int(schema)->logical_type;
+ 		check(rval, avro_write_str(out, "int"));
+ 		break;
+ 	case AVRO_INT64:
++		logical_schema = avro_schema_to_long(schema)->logical_type;
+ 		check(rval, avro_write_str(out, "long"));
+ 		break;
+ 	case AVRO_FLOAT:
+@@ -1885,7 +2178,9 @@
+ 	}
+ 
+ 	if (is_avro_primitive(schema)) {
+-		return avro_write_str(out, "\"}");
++		check(rval, avro_write_str(out, "\""));
++		check(rval, write_logical_schema(out, logical_schema));
++		return avro_write_str(out, "}");
+ 	}
+ 	avro_set_error("Unknown schema type");
+ 	return EINVAL;
+@@ -1895,3 +2190,18 @@
+ {
+ 	return avro_schema_to_json2(schema, out, NULL);
+ }
++
++avro_logical_schema_t *avro_logical_schema(avro_schema_t schema)
++{
++	switch (avro_typeof(schema)) {
++	case AVRO_INT32:
++		return avro_schema_to_int(schema)->logical_type;
++	case AVRO_INT64:
++		return avro_schema_to_long(schema)->logical_type;
++	case AVRO_BYTES:
++		return avro_schema_to_bytes(schema)->logical_type;
++	case AVRO_FIXED:
++		return avro_schema_to_fixed(schema)->logical_type;
++	}
++	return NULL;
++}
+diff -Nru avro-1.9.2.orig/lang/c/src/schema.h avro-1.9.2/lang/c/src/schema.h
+--- avro-1.9.2.orig/lang/c/src/schema.h	2020-03-11 09:31:31.080145300 +0200
++++ avro-1.9.2/lang/c/src/schema.h	2020-03-11 11:22:35.684385500 +0200
+@@ -19,6 +19,7 @@
+ 
+ #include <avro/platform.h>
+ #include "avro/basics.h"
++#include "avro/logical.h"
+ #include "avro/schema.h"
+ #include "avro_private.h"
+ #include "st.h"
+@@ -66,6 +67,7 @@
+ 
+ struct avro_fixed_schema_t {
+ 	struct avro_obj_t obj;
++	avro_logical_schema_t *logical_type;
+ 	const char *name;
+ 	const char *space;
+ 	int64_t size;
+@@ -76,6 +78,21 @@
+ 	avro_schema_t to;
+ };
+ 
++struct avro_bytes_schema_t {
++  struct avro_obj_t obj;
++  avro_logical_schema_t *logical_type;
++};
++
++struct avro_int_schema_t {
++  struct avro_obj_t obj;
++  avro_logical_schema_t *logical_type;
++};
++
++struct avro_long_schema_t {
++  struct avro_obj_t obj;
++  avro_logical_schema_t *logical_type;
++};
++
+ #define avro_schema_to_record(schema_)  (container_of(schema_, struct avro_record_schema_t, obj))
+ #define avro_schema_to_enum(schema_)    (container_of(schema_, struct avro_enum_schema_t, obj))
+ #define avro_schema_to_array(schema_)   (container_of(schema_, struct avro_array_schema_t, obj))
+@@ -83,5 +100,8 @@
+ #define avro_schema_to_union(schema_)   (container_of(schema_, struct avro_union_schema_t, obj))
+ #define avro_schema_to_fixed(schema_)   (container_of(schema_, struct avro_fixed_schema_t, obj))
+ #define avro_schema_to_link(schema_)    (container_of(schema_, struct avro_link_schema_t, obj))
++#define avro_schema_to_bytes(schema_)   (container_of(schema_, struct avro_bytes_schema_t, obj))
++#define avro_schema_to_int(schema_)     (container_of(schema_, struct avro_int_schema_t, obj))
++#define avro_schema_to_long(schema_)    (container_of(schema_, struct avro_long_schema_t, obj))
+ 
+ #endif
+diff -Nru avro-1.9.2.orig/lang/c/src/schema_equal.c avro-1.9.2/lang/c/src/schema_equal.c
+--- avro-1.9.2.orig/lang/c/src/schema_equal.c	2020-03-11 09:31:31.093146100 +0200
++++ avro-1.9.2/lang/c/src/schema_equal.c	2020-03-11 11:22:35.685385500 +0200
+@@ -19,6 +19,21 @@
+ #include "schema.h"
+ #include <string.h>
+ 
++
++static int
++logical_schema_equal(avro_logical_schema_t *a, avro_logical_schema_t *b)
++{
++  if ((a && !b) || (b && !a)) {
++    return 0;
++  }
++  if (!a && !b) {
++    return 1;
++  }
++	return a->type == b->type
++    && a->precision == b->precision
++    && a->scale == b->scale;
++}
++
+ static int
+ schema_record_equal(struct avro_record_schema_t *a,
+ 		    struct avro_record_schema_t *b)
+@@ -106,6 +121,9 @@
+ 	if (nullstrcmp(a->space, b->space)) {
+ 		return 0;
+ 	}
++  if (!logical_schema_equal(a->logical_type, b->logical_type)) {
++    return 0;
++  }
+ 	return (a->size == b->size);
+ }
+ 
+@@ -164,6 +182,24 @@
+ 	return (strcmp(avro_schema_name(a->to), avro_schema_name(b->to)) == 0);
+ }
+ 
++static int
++schema_bytes_equal(struct avro_bytes_schema_t *a, struct avro_bytes_schema_t *b)
++{
++  return logical_schema_equal(a->logical_type, b->logical_type);
++}
++
++static int
++schema_int_equal(struct avro_int_schema_t *a, struct avro_int_schema_t *b)
++{
++  return logical_schema_equal(a->logical_type, b->logical_type);
++}
++
++static long
++schema_long_equal(struct avro_long_schema_t *a, struct avro_long_schema_t *b)
++{
++  return logical_schema_equal(a->logical_type, b->logical_type);
++}
++
+ int avro_schema_equal(avro_schema_t a, avro_schema_t b)
+ {
+ 	if (!a || !b) {
+@@ -199,6 +235,15 @@
+ 	} else if (is_avro_link(a)) {
+ 		return schema_link_equal(avro_schema_to_link(a),
+ 					 avro_schema_to_link(b));
++	} else if (is_avro_bytes(a)) {
++		return schema_bytes_equal(avro_schema_to_bytes(a),
++					 avro_schema_to_bytes(b));
++	} else if (is_avro_int32(a)) {
++		return schema_int_equal(avro_schema_to_int(a),
++					 avro_schema_to_int(b));
++	} else if (is_avro_int64(a)) {
++		return schema_long_equal(avro_schema_to_long(a),
++					 avro_schema_to_long(b));
+ 	}
+ 	return 1;
+ }
+diff -Nru avro-1.9.2.orig/lang/c/tests/generate_interop_data.c avro-1.9.2/lang/c/tests/generate_interop_data.c
+--- avro-1.9.2.orig/lang/c/tests/generate_interop_data.c	2020-03-11 09:31:30.900142200 +0200
++++ avro-1.9.2/lang/c/tests/generate_interop_data.c	2020-03-11 11:22:35.686385600 +0200
+@@ -57,14 +57,14 @@
+ 
+ 	/* TODO: create a method for generating random data from schema */
+ 	interop = avro_record(schema);
+-	avro_record_set(interop, "intField", avro_int32(42));
+-	avro_record_set(interop, "longField", avro_int64(4242));
++	avro_record_set(interop, "intField", avro_int32(avro_schema_int(), 42));
++	avro_record_set(interop, "longField", avro_int64(avro_schema_long(), 4242));
+ 	avro_record_set(interop, "stringField",
+ 			avro_givestring("Follow your bliss.", NULL));
+ 	avro_record_set(interop, "boolField", avro_boolean(1));
+ 	avro_record_set(interop, "floatField", avro_float(3.14159265));
+ 	avro_record_set(interop, "doubleField", avro_double(2.71828183));
+-	avro_record_set(interop, "bytesField", avro_bytes("abcd", 4));
++	avro_record_set(interop, "bytesField", avro_bytes(avro_schema_bytes(), "abcd", 4));
+ 	avro_record_set(interop, "nullField", avro_null());
+ 
+ 	avro_schema_t  array_schema = avro_schema_get_subschema(schema, "arrayField");
+diff -Nru avro-1.9.2.orig/lang/c/tests/performance.c avro-1.9.2/lang/c/tests/performance.c
+--- avro-1.9.2.orig/lang/c/tests/performance.c	2020-03-11 09:31:30.901142200 +0200
++++ avro-1.9.2/lang/c/tests/performance.c	2020-03-11 11:22:35.688356800 +0200
+@@ -74,7 +74,7 @@
+ {
+ 	unsigned long  i;
+ 
+-	avro_datum_t  datum = avro_int32(42);
++	avro_datum_t  datum = avro_int32(avro_schema_int(), 42);
+ 	for (i = 0; i < num_tests; i++) {
+ 		avro_datum_incref(datum);
+ 		avro_datum_decref(datum);
+diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_missing_precision avro-1.9.2/lang/c/tests/schema_tests/fail/logical_missing_precision
+--- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_missing_precision	1970-01-01 02:00:00.000000000 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_missing_precision	2020-03-11 11:22:35.689389500 +0200
+@@ -0,0 +1 @@
++{"type":"bytes","logicalType":"decimal"}
+diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_precision_overflow avro-1.9.2/lang/c/tests/schema_tests/fail/logical_precision_overflow
+--- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_precision_overflow	1970-01-01 02:00:00.000000000 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_precision_overflow	2020-03-11 11:22:35.691391700 +0200
+@@ -0,0 +1 @@
++{"type":"fixed","size":4,"name":"a","logicalType":"decimal","precision":20}
+diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_scale_too_big avro-1.9.2/lang/c/tests/schema_tests/fail/logical_scale_too_big
+--- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_scale_too_big	1970-01-01 02:00:00.000000000 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_scale_too_big	2020-03-11 11:22:35.692393900 +0200
+@@ -0,0 +1 @@
++{"type":"bytes","logicalType":"decimal","precision":5,"scale":10}
+diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_unsupported avro-1.9.2/lang/c/tests/schema_tests/fail/logical_unsupported
+--- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_unsupported	1970-01-01 02:00:00.000000000 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_unsupported	2020-03-11 11:22:35.694385200 +0200
+@@ -0,0 +1 @@
++{"type":"fixed","logicalType": "unsupported"}
+diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_wrong_base_type avro-1.9.2/lang/c/tests/schema_tests/fail/logical_wrong_base_type
+--- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_wrong_base_type	1970-01-01 02:00:00.000000000 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_wrong_base_type	2020-03-11 11:22:35.697392700 +0200
+@@ -0,0 +1 @@
++{"type":"long","logicalType": "decimal","precision": 10}
+diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/pass/logical_types avro-1.9.2/lang/c/tests/schema_tests/pass/logical_types
+--- avro-1.9.2.orig/lang/c/tests/schema_tests/pass/logical_types	1970-01-01 02:00:00.000000000 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/pass/logical_types	2020-03-11 11:22:35.699386000 +0200
+@@ -0,0 +1,10 @@
++{"type": "record", "name": "org.apache.avro.tests.LogicalTypes", "fields": [
++  {"name":"f1","type":{"type":"bytes","logicalType":"decimal","precision":12,"scale":6}},
++  {"name":"f2","type":{"type":"fixed","name":"f2","size":16,"logicalType":"decimal","precision":38,"scale":9}},
++  {"name":"f3","type":{"type":"int","logicalType":"date"}},
++  {"name":"f4","type":{"type":"int","logicalType":"time-millis"}},
++  {"name":"f5","type":{"type":"long","logicalType":"time-micros"}},
++  {"name":"f6","type":{"type":"long","logicalType":"timestamp-millis"}},
++  {"name":"f7","type":{"type":"long","logicalType":"timestamp-micros"}},
++  {"name":"f8","type":{"type":"fixed","name":"f8","size":12,"logicalType":"duration"}}
++]}
+diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1084.c avro-1.9.2/lang/c/tests/test_avro_1084.c
+--- avro-1.9.2.orig/lang/c/tests/test_avro_1084.c	2020-03-11 09:31:30.996145500 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_1084.c	2020-03-11 11:22:35.700389000 +0200
+@@ -52,7 +52,8 @@
+ 
+ 	// crash
+ 	avro_datum_t main_datum = avro_record(schema);		
+-	avro_datum_t id_datum = avro_int32(1);
++	avro_schema_t id_schema = avro_schema_int();
++	avro_datum_t id_datum = avro_int32(id_schema, 1);
+ 	
+ 	if (avro_record_set (main_datum, "ID", id_datum))
+ 	{
+@@ -65,6 +66,7 @@
+ 	avro_file_writer_close (writer);
+ 	remove (dbname);
+ 
++	avro_schema_decref (id_schema);
+ 	avro_datum_decref (id_datum);
+ 	avro_datum_decref (main_datum);
+ 
+diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1087.c avro-1.9.2/lang/c/tests/test_avro_1087.c
+--- avro-1.9.2.orig/lang/c/tests/test_avro_1087.c	2020-03-11 09:31:30.994167800 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_1087.c	2020-03-11 11:22:35.702356100 +0200
+@@ -31,7 +31,8 @@
+ void add_record (avro_file_writer_t writer)
+ {
+ 	avro_datum_t main_datum = avro_record(schema);
+-	avro_datum_t id_datum = avro_int32(1);
++  avro_schema_t id_schema = avro_schema_int();
++	avro_datum_t id_datum = avro_int32(id_schema, 1);
+ 
+ 	if (avro_record_set (main_datum, "ID", id_datum))
+ 	{
+@@ -41,6 +42,7 @@
+ 
+ 	avro_file_writer_append (writer, main_datum);
+ 
++	avro_schema_decref (id_schema);
+ 	avro_datum_decref (id_datum);
+ 	avro_datum_decref (main_datum);
+ }
+@@ -80,7 +82,7 @@
+ 	avro_file_writer_flush (writer);
+ 	avro_file_writer_close (writer);
+ 
+-    avro_schema_decref(schema);
++	avro_schema_decref(schema);
+ 
+ 	remove (dbname);
+ 
+diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1237.c avro-1.9.2/lang/c/tests/test_avro_1237.c
+--- avro-1.9.2.orig/lang/c/tests/test_avro_1237.c	2020-03-11 09:31:30.988143000 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_1237.c	2020-03-11 11:22:35.703356100 +0200
+@@ -56,6 +56,7 @@
+ int main(void)
+ {
+ 	avro_schema_t  schema;
++	avro_schema_t  int_schema;
+ 	avro_file_reader_t  reader;
+ 	avro_value_iface_t  *iface;
+ 	avro_value_t  actual;
+@@ -63,8 +64,9 @@
+ 	avro_value_t  branch;
+ 
+ 	schema = avro_schema_union();
++	int_schema = avro_schema_int();
+ 	avro_schema_union_append(schema, avro_schema_null());
+-	avro_schema_union_append(schema, avro_schema_int());
++	avro_schema_union_append(schema, int_schema);
+ 
+ 	iface = avro_generic_class_from_schema(schema);
+ 	avro_generic_value_new(iface, &actual);
+@@ -107,6 +109,7 @@
+ 	avro_value_decref(&actual);
+ 	avro_value_decref(&expected);
+ 	avro_value_iface_decref(iface);
++	avro_schema_decref(int_schema);
+ 	avro_schema_decref(schema);
+ 	exit(EXIT_SUCCESS);
+ }
+diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1238.c avro-1.9.2/lang/c/tests/test_avro_1238.c
+--- avro-1.9.2.orig/lang/c/tests/test_avro_1238.c	2020-03-11 09:31:30.913143400 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_1238.c	2020-03-11 11:22:35.704385500 +0200
+@@ -65,6 +65,7 @@
+ int main(void)
+ {
+ 	avro_schema_t  schema;
++	avro_schema_t  int_schema;
+ 	avro_file_reader_t  reader;
+ 	avro_value_iface_t  *iface;
+ 	avro_value_t  actual;
+@@ -72,8 +73,9 @@
+ 	avro_value_t  branch;
+ 
+ 	schema = avro_schema_union();
++	int_schema = avro_schema_int();
+ 	avro_schema_union_append(schema, avro_schema_null());
+-	avro_schema_union_append(schema, avro_schema_int());
++	avro_schema_union_append(schema, int_schema);
+ 
+ 	iface = avro_generic_class_from_schema(schema);
+ 	avro_generic_value_new(iface, &actual);
+@@ -120,6 +122,7 @@
+ 	avro_value_decref(&actual);
+ 	avro_value_decref(&expected);
+ 	avro_value_iface_decref(iface);
++	avro_schema_decref(int_schema);
+ 	avro_schema_decref(schema);
+ 	exit(EXIT_SUCCESS);
+ }
+diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_data.c avro-1.9.2/lang/c/tests/test_avro_data.c
+--- avro-1.9.2.orig/lang/c/tests/test_avro_data.c	2020-03-11 09:31:30.902142400 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_data.c	2020-03-11 11:22:35.705387500 +0200
+@@ -186,15 +186,15 @@
+ 	avro_datum_t datum;
+ 	avro_datum_t expected_datum;
+ 
+-	datum = avro_givebytes(bytes, sizeof(bytes), NULL);
++	datum = avro_givebytes(writer_schema, bytes, sizeof(bytes), NULL);
+ 	write_read_check(writer_schema, datum, NULL, NULL, "bytes");
+ 	test_json(datum, "\"\\u00de\\u00ad\\u00be\\u00ef\"");
+ 	avro_datum_decref(datum);
+ 	avro_schema_decref(writer_schema);
+ 
+-	datum = avro_givebytes(NULL, 0, NULL);
++	datum = avro_givebytes(writer_schema, NULL, 0, NULL);
+ 	avro_givebytes_set(datum, bytes, sizeof(bytes), NULL);
+-	expected_datum = avro_givebytes(bytes, sizeof(bytes), NULL);
++	expected_datum = avro_givebytes(writer_schema, bytes, sizeof(bytes), NULL);
+ 	if (!avro_datum_equal(datum, expected_datum)) {
+ 		fprintf(stderr,
+ 		        "Expected equal bytes instances.\n");
+@@ -206,7 +206,7 @@
+ 	// The following should bork if we don't copy the bytes value
+ 	// correctly (since we'll try to free a static string).
+ 
+-	datum = avro_bytes("original", 8);
++	datum = avro_bytes(writer_schema, "original", 8);
+ 	avro_bytes_set(datum, "alsothis", 8);
+ 	avro_datum_decref(datum);
+ 
+@@ -223,8 +223,8 @@
+ 	avro_schema_t double_schema = avro_schema_double();
+ 	for (i = 0; i < 100; i++) {
+ 		int32_t  value = rand_int32();
+-		avro_datum_t datum = avro_int32(value);
+-		avro_datum_t long_datum = avro_int64(value);
++		avro_datum_t datum = avro_int32(writer_schema, value);
++		avro_datum_t long_datum = avro_int64(long_schema, value);
+ 		avro_datum_t float_datum = avro_float(value);
+ 		avro_datum_t double_datum = avro_double(value);
+ 		write_read_check(writer_schema, datum, NULL, NULL, "int");
+@@ -240,7 +240,7 @@
+ 		avro_datum_decref(double_datum);
+ 	}
+ 
+-	avro_datum_t  datum = avro_int32(10000);
++	avro_datum_t  datum = avro_int32(writer_schema, 10000);
+ 	test_json(datum, "10000");
+ 	avro_datum_decref(datum);
+ 
+@@ -259,7 +259,7 @@
+ 	avro_schema_t double_schema = avro_schema_double();
+ 	for (i = 0; i < 100; i++) {
+ 		int64_t  value = rand_int64();
+-		avro_datum_t datum = avro_int64(value);
++		avro_datum_t datum = avro_int64(writer_schema, value);
+ 		avro_datum_t float_datum = avro_float(value);
+ 		avro_datum_t double_datum = avro_double(value);
+ 		write_read_check(writer_schema, datum, NULL, NULL, "long");
+@@ -272,7 +272,7 @@
+ 		avro_datum_decref(double_datum);
+ 	}
+ 
+-	avro_datum_t  datum = avro_int64(10000);
++	avro_datum_t  datum = avro_int64(writer_schema, 10000);
+ 	test_json(datum, "10000");
+ 	avro_datum_decref(datum);
+ 
+@@ -354,13 +354,14 @@
+ {
+ 	avro_schema_t schema = avro_schema_record("person", NULL);
+ 	avro_schema_record_field_append(schema, "name", avro_schema_string());
+-	avro_schema_record_field_append(schema, "age", avro_schema_int());
++	avro_schema_t age_schema = avro_schema_int();
++	avro_schema_record_field_append(schema, "age", age_schema);
+ 
+ 	avro_datum_t datum = avro_record(schema);
+ 	avro_datum_t name_datum, age_datum;
+ 
+ 	name_datum = avro_givestring("Joseph Campbell", NULL);
+-	age_datum = avro_int32(83);
++	age_datum = avro_int32(age_schema, 83);
+ 
+ 	avro_record_set(datum, "name", name_datum);
+ 	avro_record_set(datum, "age", age_datum);
+@@ -484,11 +485,12 @@
+ static int test_array(void)
+ {
+ 	int i, rval;
+-	avro_schema_t schema = avro_schema_array(avro_schema_int());
++	avro_schema_t int_schema = avro_schema_int();
++	avro_schema_t schema = avro_schema_array(int_schema);
+ 	avro_datum_t datum = avro_array(schema);
+ 
+ 	for (i = 0; i < 10; i++) {
+-		avro_datum_t i32_datum = avro_int32(i);
++		avro_datum_t i32_datum = avro_int32(int_schema, i);
+ 		rval = avro_array_append_datum(datum, i32_datum);
+ 		avro_datum_decref(i32_datum);
+ 		if (rval) {
+@@ -510,13 +512,14 @@
+ 
+ static int test_map(void)
+ {
+-	avro_schema_t schema = avro_schema_map(avro_schema_long());
++	avro_schema_t long_schema = avro_schema_long();
++	avro_schema_t schema = avro_schema_map(long_schema);
+ 	avro_datum_t datum = avro_map(schema);
+ 	int64_t i = 0;
+ 	char *nums[] =
+ 	    { "zero", "one", "two", "three", "four", "five", "six", NULL };
+ 	while (nums[i]) {
+-		avro_datum_t i_datum = avro_int64(i);
++		avro_datum_t i_datum = avro_int64(long_schema, i);
+ 		avro_map_set(datum, nums[i], i_datum);
+ 		avro_datum_decref(i_datum);
+ 		i++;
+diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_schema.c avro-1.9.2/lang/c/tests/test_avro_schema.c
+--- avro-1.9.2.orig/lang/c/tests/test_avro_schema.c	2020-03-11 09:31:30.980172900 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_schema.c	2020-03-11 11:22:35.706387000 +0200
+@@ -47,14 +47,16 @@
+ 		fprintf(stderr, "Unable to open '%s'\n", dirpath);
+ 		exit(EXIT_FAILURE);
+ 	}
+-	do {
+-		dent = readdir(dir);
++	while(1) {
++		if ((dent = readdir(dir)) == NULL) {
++			break;
++		}
+ 
+ 		/* Suppress failures on CVS directories */
+-		if ( dent && !strcmp( (const char *) dent->d_name, "CVS" ) )
++		if (!strcmp( (const char *) dent->d_name, "CVS" ) )
+ 			continue;
+ 
+-		if (dent && dent->d_name[0] != '.') {
++		if (dent->d_name[0] != '.') {
+ 			int test_rval;
+ 			snprintf(filepath, sizeof(filepath), "%s/%s", dirpath,
+ 				 dent->d_name);
+@@ -126,20 +128,21 @@
+ 			}
+ 		}
+ 	}
+-	while (dent != NULL);
+ 	closedir(dir);
+ }
+ 
+ static int test_array(void)
+ {
+-	avro_schema_t schema = avro_schema_array(avro_schema_int());
++	avro_schema_t int_schema = avro_schema_int();
++	avro_schema_t schema = avro_schema_array(int_schema);
+ 
+ 	if (!avro_schema_equal
+-	    (avro_schema_array_items(schema), avro_schema_int())) {
++	    (avro_schema_array_items(schema), int_schema)) {
+ 		fprintf(stderr, "Unexpected array items schema");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 
++	avro_schema_decref(int_schema);
+ 	avro_schema_decref(schema);
+ 	return 0;
+ }
+@@ -195,14 +198,16 @@
+ 
+ static int test_map(void)
+ {
+-	avro_schema_t schema = avro_schema_map(avro_schema_long());
++	avro_schema_t long_schema = avro_schema_long();
++	avro_schema_t schema = avro_schema_map(long_schema);
+ 
+ 	if (!avro_schema_equal
+-	    (avro_schema_map_values(schema), avro_schema_long())) {
++	    (avro_schema_map_values(schema), long_schema)) {
+ 		fprintf(stderr, "Unexpected map values schema");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 
++	avro_schema_decref(long_schema);
+ 	avro_schema_decref(schema);
+ 	return 0;
+ }
+@@ -210,9 +215,10 @@
+ static int test_record(void)
+ {
+ 	avro_schema_t schema = avro_schema_record("person", NULL);
++	avro_schema_t age_schema = avro_schema_int();
+ 
+ 	avro_schema_record_field_append(schema, "name", avro_schema_string());
+-	avro_schema_record_field_append(schema, "age", avro_schema_int());
++	avro_schema_record_field_append(schema, "age", age_schema);
+ 
+ 	if (avro_schema_record_field_get_index(schema, "name") != 0) {
+ 		fprintf(stderr, "Incorrect index for \"name\" field\n");
+@@ -233,21 +239,23 @@
+ 
+ 	avro_schema_t  field1 =
+ 		avro_schema_record_field_get_by_index(schema, 1);
+-	if (!avro_schema_equal(field1, avro_schema_int())) {
++	if (!avro_schema_equal(field1, age_schema)) {
+ 		fprintf(stderr, "Unexpected field 1\n");
+ 		exit(EXIT_FAILURE);
+ 	}
+ 
++	avro_schema_decref(age_schema);
+ 	avro_schema_decref(schema);
+ 	return 0;
+ }
+ 
+ static int test_union(void)
+ {
++	avro_schema_t int_schema = avro_schema_int();
+ 	avro_schema_t schema = avro_schema_union();
+ 
+ 	avro_schema_union_append(schema, avro_schema_string());
+-	avro_schema_union_append(schema, avro_schema_int());
++	avro_schema_union_append(schema, int_schema);
+ 	avro_schema_union_append(schema, avro_schema_null());
+ 
+ 	if (!avro_schema_equal
+@@ -264,6 +272,7 @@
+ 		exit(EXIT_FAILURE);
+ 	}
+ 
++	avro_schema_decref(int_schema);
+ 	avro_schema_decref(schema);
+ 	return 0;
+ }
