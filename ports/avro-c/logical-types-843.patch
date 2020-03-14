@@ -1,6 +1,6 @@
 diff -Nru avro-1.9.2.orig/lang/c/CMakeLists.txt avro-1.9.2/lang/c/CMakeLists.txt
 --- avro-1.9.2.orig/lang/c/CMakeLists.txt	2020-03-11 09:31:31.001169300 +0200
-+++ avro-1.9.2/lang/c/CMakeLists.txt	2020-03-11 11:22:35.670354800 +0200
++++ avro-1.9.2/lang/c/CMakeLists.txt	2020-03-14 14:32:52.415178000 +0200
 @@ -188,6 +188,10 @@
      message(FATAL_ERROR "libjansson >=2.3 not found")
  endif (JANSSON_FOUND)
@@ -14,7 +14,7 @@ diff -Nru avro-1.9.2.orig/lang/c/CMakeLists.txt avro-1.9.2/lang/c/CMakeLists.txt
  add_subdirectory(examples)
 diff -Nru avro-1.9.2.orig/lang/c/examples/quickstop.c avro-1.9.2/lang/c/examples/quickstop.c
 --- avro-1.9.2.orig/lang/c/examples/quickstop.c	2020-03-11 09:31:31.011168500 +0200
-+++ avro-1.9.2/lang/c/examples/quickstop.c	2020-03-11 11:22:35.672355100 +0200
++++ avro-1.9.2/lang/c/examples/quickstop.c	2020-03-14 14:32:52.415947100 +0200
 @@ -56,10 +56,13 @@
  {
  	avro_datum_t person = avro_record(person_schema);
@@ -33,7 +33,7 @@ diff -Nru avro-1.9.2.orig/lang/c/examples/quickstop.c avro-1.9.2/lang/c/examples
  	if (avro_record_set(person, "ID", id_datum)
 diff -Nru avro-1.9.2.orig/lang/c/examples/quickstop.c.orig avro-1.9.2/lang/c/examples/quickstop.c.orig
 --- avro-1.9.2.orig/lang/c/examples/quickstop.c.orig	1970-01-01 02:00:00.000000000 +0200
-+++ avro-1.9.2/lang/c/examples/quickstop.c.orig	2020-03-11 11:22:28.178760300 +0200
++++ avro-1.9.2/lang/c/examples/quickstop.c.orig	2020-03-14 14:32:03.887590900 +0200
 @@ -0,0 +1,223 @@
 +/*
 + * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -260,7 +260,7 @@ diff -Nru avro-1.9.2.orig/lang/c/examples/quickstop.c.orig avro-1.9.2/lang/c/exa
 +}
 diff -Nru avro-1.9.2.orig/lang/c/src/CMakeLists.txt avro-1.9.2/lang/c/src/CMakeLists.txt
 --- avro-1.9.2.orig/lang/c/src/CMakeLists.txt	2020-03-11 09:31:31.090146700 +0200
-+++ avro-1.9.2/lang/c/src/CMakeLists.txt	2020-03-11 11:22:35.674355600 +0200
++++ avro-1.9.2/lang/c/src/CMakeLists.txt	2020-03-14 14:32:52.416948800 +0200
 @@ -29,6 +29,7 @@
      avro/generic.h
      avro/io.h
@@ -285,9 +285,46 @@ diff -Nru avro-1.9.2.orig/lang/c/src/CMakeLists.txt avro-1.9.2/lang/c/src/CMakeL
  set_target_properties(avro-shared PROPERTIES
          OUTPUT_NAME avro
          VERSION ${LIBAVRO_DOT_VERSION}
+diff -Nru avro-1.9.2.orig/lang/c/src/avro/generic.h avro-1.9.2/lang/c/src/avro/generic.h
+--- avro-1.9.2.orig/lang/c/src/avro/generic.h	2020-03-11 09:31:31.038174800 +0200
++++ avro-1.9.2/lang/c/src/avro/generic.h	2020-03-14 14:32:52.417923200 +0200
+@@ -55,30 +55,26 @@
+ 
+ /*
+  * These functions return an avro_value_iface_t implementation for each
+- * primitive schema type.  (For enum, fixed, and the compound types, you
++ * primitive schema type.  (For enum, fixed, bytes, int, long and the compound types, you
+  * must use the @ref avro_generic_class_from_schema function.)
+  */
+ 
+ avro_value_iface_t *avro_generic_boolean_class(void);
+-avro_value_iface_t *avro_generic_bytes_class(void);
+ avro_value_iface_t *avro_generic_double_class(void);
+ avro_value_iface_t *avro_generic_float_class(void);
+-avro_value_iface_t *avro_generic_int_class(void);
+-avro_value_iface_t *avro_generic_long_class(void);
+ avro_value_iface_t *avro_generic_null_class(void);
+ avro_value_iface_t *avro_generic_string_class(void);
+ 
+ 
+ /*
+  * These functions instantiate a new generic primitive value.
++ * For enum, fixed, bytes, int, long and compound types, you must use the
++ * @ref avro_generic_value_new function.)
+  */
+ 
+ int avro_generic_boolean_new(avro_value_t *value, int val);
+-int avro_generic_bytes_new(avro_value_t *value, void *buf, size_t size);
+ int avro_generic_double_new(avro_value_t *value, double val);
+ int avro_generic_float_new(avro_value_t *value, float val);
+-int avro_generic_int_new(avro_value_t *value, int32_t val);
+-int avro_generic_long_new(avro_value_t *value, int64_t val);
+ int avro_generic_null_new(avro_value_t *value);
+ int avro_generic_string_new(avro_value_t *value, const char *val);
+ int avro_generic_string_new_length(avro_value_t *value, const char *val, size_t size);
 diff -Nru avro-1.9.2.orig/lang/c/src/avro/legacy.h avro-1.9.2/lang/c/src/avro/legacy.h
 --- avro-1.9.2.orig/lang/c/src/avro/legacy.h	2020-03-11 09:31:31.041174100 +0200
-+++ avro-1.9.2/lang/c/src/avro/legacy.h	2020-03-11 11:22:35.675356500 +0200
++++ avro-1.9.2/lang/c/src/avro/legacy.h	2020-03-14 14:32:52.419922200 +0200
 @@ -70,11 +70,11 @@
  avro_datum_t avro_string(const char *str);
  avro_datum_t avro_givestring(const char *str,
@@ -306,7 +343,7 @@ diff -Nru avro-1.9.2.orig/lang/c/src/avro/legacy.h avro-1.9.2/lang/c/src/avro/le
  avro_datum_t avro_boolean(int8_t i);
 diff -Nru avro-1.9.2.orig/lang/c/src/avro/logical.h avro-1.9.2/lang/c/src/avro/logical.h
 --- avro-1.9.2.orig/lang/c/src/avro/logical.h	1970-01-01 02:00:00.000000000 +0200
-+++ avro-1.9.2/lang/c/src/avro/logical.h	2020-03-11 11:22:35.676355200 +0200
++++ avro-1.9.2/lang/c/src/avro/logical.h	2020-03-14 14:32:52.420921100 +0200
 @@ -0,0 +1,46 @@
 +/*
 + * Licensed to the Apache Software Foundation (ASF) under one or more
@@ -356,7 +393,7 @@ diff -Nru avro-1.9.2.orig/lang/c/src/avro/logical.h avro-1.9.2/lang/c/src/avro/l
 +#endif
 diff -Nru avro-1.9.2.orig/lang/c/src/avro/schema.h avro-1.9.2/lang/c/src/avro/schema.h
 --- avro-1.9.2.orig/lang/c/src/avro/schema.h	2020-03-11 09:31:31.032174100 +0200
-+++ avro-1.9.2/lang/c/src/avro/schema.h	2020-03-11 11:22:35.678354100 +0200
++++ avro-1.9.2/lang/c/src/avro/schema.h	2020-03-14 14:32:52.422921000 +0200
 @@ -28,6 +28,7 @@
  #include <stdlib.h>
  
@@ -376,7 +413,7 @@ diff -Nru avro-1.9.2.orig/lang/c/src/avro/schema.h avro-1.9.2/lang/c/src/avro/sc
  #endif
 diff -Nru avro-1.9.2.orig/lang/c/src/datafile.c avro-1.9.2/lang/c/src/datafile.c
 --- avro-1.9.2.orig/lang/c/src/datafile.c	2020-03-11 09:31:31.068170100 +0200
-+++ avro-1.9.2/lang/c/src/datafile.c	2020-03-11 11:22:35.679357300 +0200
++++ avro-1.9.2/lang/c/src/datafile.c	2020-03-14 14:32:52.423921200 +0200
 @@ -273,6 +273,7 @@
  		return EILSEQ;
  	}
@@ -387,7 +424,7 @@ diff -Nru avro-1.9.2.orig/lang/c/src/datafile.c avro-1.9.2/lang/c/src/datafile.c
  	if (rval) {
 diff -Nru avro-1.9.2.orig/lang/c/src/datum.c avro-1.9.2/lang/c/src/datum.c
 --- avro-1.9.2.orig/lang/c/src/datum.c	2020-03-11 09:31:31.018143900 +0200
-+++ avro-1.9.2/lang/c/src/datum.c	2020-03-11 11:22:35.680386400 +0200
++++ avro-1.9.2/lang/c/src/datum.c	2020-03-14 14:32:52.424921100 +0200
 @@ -136,8 +136,9 @@
  	return avro_string_set_private(datum, p, size, free);
  }
@@ -540,7 +577,7 @@ diff -Nru avro-1.9.2.orig/lang/c/src/datum.c avro-1.9.2/lang/c/src/datum.c
  			break;
 diff -Nru avro-1.9.2.orig/lang/c/src/datum.h avro-1.9.2/lang/c/src/datum.h
 --- avro-1.9.2.orig/lang/c/src/datum.h	2020-03-11 09:31:31.061143900 +0200
-+++ avro-1.9.2/lang/c/src/datum.h	2020-03-11 11:22:35.681385100 +0200
++++ avro-1.9.2/lang/c/src/datum.h	2020-03-14 14:32:52.425921400 +0200
 @@ -34,6 +34,7 @@
  
  struct avro_bytes_datum_t {
@@ -563,9 +600,319 @@ diff -Nru avro-1.9.2.orig/lang/c/src/datum.h avro-1.9.2/lang/c/src/datum.h
  	int64_t i64;
  };
  
+diff -Nru avro-1.9.2.orig/lang/c/src/generic.c avro-1.9.2/lang/c/src/generic.c
+--- avro-1.9.2.orig/lang/c/src/generic.c	2020-03-11 09:31:31.084175100 +0200
++++ avro-1.9.2/lang/c/src/generic.c	2020-03-14 14:32:52.427921700 +0200
+@@ -815,6 +815,32 @@
+  * bytes
+  */
+ 
++typedef struct avro_generic_bytes_value_iface {
++	avro_generic_value_iface_t  parent;
++	volatile int  refcount;
++	avro_schema_t  schema;
++} avro_generic_bytes_value_iface_t;
++
++static avro_value_iface_t *
++avro_generic_bytes_incref_iface(avro_value_iface_t *viface)
++{
++	avro_generic_bytes_value_iface_t  *iface =
++	    container_of(viface, avro_generic_bytes_value_iface_t, parent);
++	avro_refcount_inc(&iface->refcount);
++	return viface;
++}
++
++static void
++avro_generic_bytes_decref_iface(avro_value_iface_t *viface)
++{
++	avro_generic_bytes_value_iface_t  *iface =
++	    container_of(viface, avro_generic_bytes_value_iface_t, parent);
++	if (avro_refcount_dec(&iface->refcount)) {
++		avro_schema_decref(iface->schema);
++		avro_freet(avro_generic_bytes_value_iface_t, iface);
++	}
++}
++
+ static int
+ avro_generic_bytes_reset(const avro_value_iface_t *iface, void *vself)
+ {
+@@ -833,11 +859,12 @@
+ }
+ 
+ static avro_schema_t
+-avro_generic_bytes_get_schema(const avro_value_iface_t *iface, const void *vself)
++avro_generic_bytes_get_schema(const avro_value_iface_t *viface, const void *vself)
+ {
+-	AVRO_UNUSED(iface);
++	const avro_generic_bytes_value_iface_t  *iface =
++	    container_of(viface, avro_generic_bytes_value_iface_t, parent);
+ 	AVRO_UNUSED(vself);
+-	return avro_schema_bytes();
++	return iface->schema;
+ }
+ 
+ static int
+@@ -913,8 +940,8 @@
+ {
+ 	{
+ 		/* "class" methods */
+-		NULL, /* incref_iface */
+-		NULL, /* decref_iface */
++		avro_generic_bytes_incref_iface, /* incref_iface */
++		avro_generic_bytes_decref_iface, /* decref_iface */
+ 		/* general "instance" methods */
+ 		avro_generic_value_incref,
+ 		avro_generic_value_decref,
+@@ -966,18 +993,19 @@
+ 	avro_generic_bytes_done
+ };
+ 
+-avro_value_iface_t *
+-avro_generic_bytes_class(void)
++static avro_generic_value_iface_t *
++avro_generic_bytes_class(avro_schema_t schema)
+ {
+-	return &AVRO_GENERIC_BYTES_CLASS.parent;
+-}
++	avro_generic_bytes_value_iface_t  *iface =
++		(avro_generic_bytes_value_iface_t *) avro_new(avro_generic_bytes_value_iface_t);
++	if (iface == NULL) {
++		return NULL;
++	}
+ 
+-int
+-avro_generic_bytes_new(avro_value_t *value, void *buf, size_t size)
+-{
+-	int  rval;
+-	check(rval, avro_generic_value_new(&AVRO_GENERIC_BYTES_CLASS.parent, value));
+-	return avro_generic_bytes_set(value->iface, value->self, buf, size);
++	iface->parent = AVRO_GENERIC_BYTES_CLASS;
++	iface->refcount = 1;
++	iface->schema = avro_schema_incref(schema);
++	return &iface->parent;
+ }
+ 
+ /*-----------------------------------------------------------------------
+@@ -1270,6 +1298,32 @@
+  * int
+  */
+ 
++typedef struct avro_generic_int_value_iface {
++	avro_generic_value_iface_t  parent;
++	volatile int  refcount;
++	avro_schema_t  schema;
++} avro_generic_int_value_iface_t;
++
++static avro_value_iface_t *
++avro_generic_int_incref_iface(avro_value_iface_t *viface)
++{
++	avro_generic_int_value_iface_t  *iface =
++	    container_of(viface, avro_generic_int_value_iface_t, parent);
++	avro_refcount_inc(&iface->refcount);
++	return viface;
++}
++
++static void
++avro_generic_int_decref_iface(avro_value_iface_t *viface)
++{
++	avro_generic_int_value_iface_t  *iface =
++	    container_of(viface, avro_generic_int_value_iface_t, parent);
++	if (avro_refcount_dec(&iface->refcount)) {
++		avro_schema_decref(iface->schema);
++		avro_freet(avro_generic_int_value_iface_t, iface);
++	}
++}
++
+ static int
+ avro_generic_int_reset(const avro_value_iface_t *iface, void *vself)
+ {
+@@ -1288,11 +1342,12 @@
+ }
+ 
+ static avro_schema_t
+-avro_generic_int_get_schema(const avro_value_iface_t *iface, const void *vself)
++avro_generic_int_get_schema(const avro_value_iface_t *viface, const void *vself)
+ {
+-	AVRO_UNUSED(iface);
++	const avro_generic_int_value_iface_t  *iface =
++	    container_of(viface, avro_generic_int_value_iface_t, parent);
+ 	AVRO_UNUSED(vself);
+-	return avro_schema_int();
++	return iface->schema;
+ }
+ 
+ static int
+@@ -1342,8 +1397,8 @@
+ {
+ 	{
+ 		/* "class" methods */
+-		NULL, /* incref_iface */
+-		NULL, /* decref_iface */
++		avro_generic_int_incref_iface, /* incref_iface */
++		avro_generic_int_decref_iface, /* decref_iface */
+ 		/* general "instance" methods */
+ 		avro_generic_value_incref,
+ 		avro_generic_value_decref,
+@@ -1395,24 +1450,51 @@
+ 	avro_generic_int_done
+ };
+ 
+-avro_value_iface_t *
+-avro_generic_int_class(void)
++static avro_generic_value_iface_t *
++avro_generic_int_class(avro_schema_t schema)
+ {
+-	return &AVRO_GENERIC_INT_CLASS.parent;
+-}
++	avro_generic_int_value_iface_t  *iface =
++		(avro_generic_int_value_iface_t *) avro_new(avro_generic_int_value_iface_t);
++	if (iface == NULL) {
++		return NULL;
++	}
+ 
+-int
+-avro_generic_int_new(avro_value_t *value, int32_t val)
+-{
+-	int  rval;
+-	check(rval, avro_generic_value_new(&AVRO_GENERIC_INT_CLASS.parent, value));
+-	return avro_generic_int_set(value->iface, value->self, val);
++	iface->parent = AVRO_GENERIC_INT_CLASS;
++	iface->refcount = 1;
++	iface->schema = avro_schema_incref(schema);
++	return &iface->parent;
+ }
+ 
+ /*-----------------------------------------------------------------------
+  * long
+  */
+ 
++typedef struct avro_generic_long_value_iface {
++	avro_generic_value_iface_t  parent;
++	volatile int  refcount;
++	avro_schema_t  schema;
++} avro_generic_long_value_iface_t;
++
++static avro_value_iface_t *
++avro_generic_long_incref_iface(avro_value_iface_t *viface)
++{
++	avro_generic_long_value_iface_t  *iface =
++	    container_of(viface, avro_generic_long_value_iface_t, parent);
++	avro_refcount_inc(&iface->refcount);
++	return viface;
++}
++
++static void
++avro_generic_long_decref_iface(avro_value_iface_t *viface)
++{
++	avro_generic_long_value_iface_t  *iface =
++	    container_of(viface, avro_generic_long_value_iface_t, parent);
++	if (avro_refcount_dec(&iface->refcount)) {
++		avro_schema_decref(iface->schema);
++		avro_freet(avro_generic_long_value_iface_t, iface);
++	}
++}
++
+ static int
+ avro_generic_long_reset(const avro_value_iface_t *iface, void *vself)
+ {
+@@ -1431,11 +1513,12 @@
+ }
+ 
+ static avro_schema_t
+-avro_generic_long_get_schema(const avro_value_iface_t *iface, const void *vself)
++avro_generic_long_get_schema(const avro_value_iface_t *viface, const void *vself)
+ {
+-	AVRO_UNUSED(iface);
++	const avro_generic_long_value_iface_t  *iface =
++	    container_of(viface, avro_generic_long_value_iface_t, parent);
+ 	AVRO_UNUSED(vself);
+-	return avro_schema_long();
++	return iface->schema;
+ }
+ 
+ static int
+@@ -1485,8 +1568,8 @@
+ {
+ 	{
+ 		/* "class" methods */
+-		NULL, /* incref_iface */
+-		NULL, /* decref_iface */
++		avro_generic_long_incref_iface, /* incref_iface */
++		avro_generic_long_decref_iface, /* decref_iface */
+ 		/* general "instance" methods */
+ 		avro_generic_value_incref,
+ 		avro_generic_value_decref,
+@@ -1538,18 +1621,19 @@
+ 	avro_generic_long_done
+ };
+ 
+-avro_value_iface_t *
+-avro_generic_long_class(void)
++static avro_generic_value_iface_t *
++avro_generic_long_class(avro_schema_t schema)
+ {
+-	return &AVRO_GENERIC_LONG_CLASS.parent;
+-}
++	avro_generic_long_value_iface_t  *iface =
++		(avro_generic_long_value_iface_t *) avro_new(avro_generic_long_value_iface_t);
++	if (iface == NULL) {
++		return NULL;
++	}
+ 
+-int
+-avro_generic_long_new(avro_value_t *value, int64_t val)
+-{
+-	int  rval;
+-	check(rval, avro_generic_value_new(&AVRO_GENERIC_LONG_CLASS.parent, value));
+-	return avro_generic_long_set(value->iface, value->self, val);
++	iface->parent = AVRO_GENERIC_LONG_CLASS;
++	iface->refcount = 1;
++	iface->schema = avro_schema_incref(schema);
++	return &iface->parent;
+ }
+ 
+ /*-----------------------------------------------------------------------
+@@ -3584,21 +3668,12 @@
+ 	case AVRO_BOOLEAN:
+ 		result = &AVRO_GENERIC_BOOLEAN_CLASS;
+ 		break;
+-	case AVRO_BYTES:
+-		result = &AVRO_GENERIC_BYTES_CLASS;
+-		break;
+ 	case AVRO_DOUBLE:
+ 		result = &AVRO_GENERIC_DOUBLE_CLASS;
+ 		break;
+ 	case AVRO_FLOAT:
+ 		result = &AVRO_GENERIC_FLOAT_CLASS;
+ 		break;
+-	case AVRO_INT32:
+-		result = &AVRO_GENERIC_INT_CLASS;
+-		break;
+-	case AVRO_INT64:
+-		result = &AVRO_GENERIC_LONG_CLASS;
+-		break;
+ 	case AVRO_NULL:
+ 		result = &AVRO_GENERIC_NULL_CLASS;
+ 		break;
+@@ -3606,6 +3681,15 @@
+ 		result = &AVRO_GENERIC_STRING_CLASS;
+ 		break;
+ 
++	case AVRO_BYTES:
++		result = avro_generic_bytes_class(schema);
++		break;
++	case AVRO_INT32:
++		result = avro_generic_int_class(schema);
++		break;
++	case AVRO_INT64:
++		result = avro_generic_long_class(schema);
++		break;
+ 	case AVRO_ARRAY:
+ 		result = avro_generic_array_class(schema, state);
+ 		break;
 diff -Nru avro-1.9.2.orig/lang/c/src/schema.c avro-1.9.2/lang/c/src/schema.c
 --- avro-1.9.2.orig/lang/c/src/schema.c	2020-03-11 09:31:31.020173400 +0200
-+++ avro-1.9.2/lang/c/src/schema.c	2020-03-11 11:22:35.683356000 +0200
++++ avro-1.9.2/lang/c/src/schema.c	2020-03-14 14:32:52.428921300 +0200
 @@ -27,6 +27,7 @@
  #include <string.h>
  #include <errno.h>
@@ -1100,7 +1447,7 @@ diff -Nru avro-1.9.2.orig/lang/c/src/schema.c avro-1.9.2/lang/c/src/schema.c
  	}
  	avro_set_error("Unknown schema type");
  	return EINVAL;
-@@ -1895,3 +2190,18 @@
+@@ -1895,3 +2190,19 @@
  {
  	return avro_schema_to_json2(schema, out, NULL);
  }
@@ -1116,12 +1463,13 @@ diff -Nru avro-1.9.2.orig/lang/c/src/schema.c avro-1.9.2/lang/c/src/schema.c
 +		return avro_schema_to_bytes(schema)->logical_type;
 +	case AVRO_FIXED:
 +		return avro_schema_to_fixed(schema)->logical_type;
++  default:
++    return NULL;
 +	}
-+	return NULL;
 +}
 diff -Nru avro-1.9.2.orig/lang/c/src/schema.h avro-1.9.2/lang/c/src/schema.h
 --- avro-1.9.2.orig/lang/c/src/schema.h	2020-03-11 09:31:31.080145300 +0200
-+++ avro-1.9.2/lang/c/src/schema.h	2020-03-11 11:22:35.684385500 +0200
++++ avro-1.9.2/lang/c/src/schema.h	2020-03-14 14:32:52.430921600 +0200
 @@ -19,6 +19,7 @@
  
  #include <avro/platform.h>
@@ -1171,7 +1519,7 @@ diff -Nru avro-1.9.2.orig/lang/c/src/schema.h avro-1.9.2/lang/c/src/schema.h
  #endif
 diff -Nru avro-1.9.2.orig/lang/c/src/schema_equal.c avro-1.9.2/lang/c/src/schema_equal.c
 --- avro-1.9.2.orig/lang/c/src/schema_equal.c	2020-03-11 09:31:31.093146100 +0200
-+++ avro-1.9.2/lang/c/src/schema_equal.c	2020-03-11 11:22:35.685385500 +0200
++++ avro-1.9.2/lang/c/src/schema_equal.c	2020-03-14 14:32:52.431921600 +0200
 @@ -19,6 +19,21 @@
  #include "schema.h"
  #include <string.h>
@@ -1247,7 +1595,7 @@ diff -Nru avro-1.9.2.orig/lang/c/src/schema_equal.c avro-1.9.2/lang/c/src/schema
  }
 diff -Nru avro-1.9.2.orig/lang/c/tests/generate_interop_data.c avro-1.9.2/lang/c/tests/generate_interop_data.c
 --- avro-1.9.2.orig/lang/c/tests/generate_interop_data.c	2020-03-11 09:31:30.900142200 +0200
-+++ avro-1.9.2/lang/c/tests/generate_interop_data.c	2020-03-11 11:22:35.686385600 +0200
++++ avro-1.9.2/lang/c/tests/generate_interop_data.c	2020-03-14 14:32:52.432921500 +0200
 @@ -57,14 +57,14 @@
  
  	/* TODO: create a method for generating random data from schema */
@@ -1268,7 +1616,7 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/generate_interop_data.c avro-1.9.2/lang/c
  	avro_schema_t  array_schema = avro_schema_get_subschema(schema, "arrayField");
 diff -Nru avro-1.9.2.orig/lang/c/tests/performance.c avro-1.9.2/lang/c/tests/performance.c
 --- avro-1.9.2.orig/lang/c/tests/performance.c	2020-03-11 09:31:30.901142200 +0200
-+++ avro-1.9.2/lang/c/tests/performance.c	2020-03-11 11:22:35.688356800 +0200
++++ avro-1.9.2/lang/c/tests/performance.c	2020-03-14 14:32:52.433921500 +0200
 @@ -74,7 +74,7 @@
  {
  	unsigned long  i;
@@ -1280,32 +1628,32 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/performance.c avro-1.9.2/lang/c/tests/per
  		avro_datum_decref(datum);
 diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_missing_precision avro-1.9.2/lang/c/tests/schema_tests/fail/logical_missing_precision
 --- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_missing_precision	1970-01-01 02:00:00.000000000 +0200
-+++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_missing_precision	2020-03-11 11:22:35.689389500 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_missing_precision	2020-03-14 14:32:52.434920900 +0200
 @@ -0,0 +1 @@
 +{"type":"bytes","logicalType":"decimal"}
 diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_precision_overflow avro-1.9.2/lang/c/tests/schema_tests/fail/logical_precision_overflow
 --- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_precision_overflow	1970-01-01 02:00:00.000000000 +0200
-+++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_precision_overflow	2020-03-11 11:22:35.691391700 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_precision_overflow	2020-03-14 14:32:52.437921300 +0200
 @@ -0,0 +1 @@
 +{"type":"fixed","size":4,"name":"a","logicalType":"decimal","precision":20}
 diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_scale_too_big avro-1.9.2/lang/c/tests/schema_tests/fail/logical_scale_too_big
 --- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_scale_too_big	1970-01-01 02:00:00.000000000 +0200
-+++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_scale_too_big	2020-03-11 11:22:35.692393900 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_scale_too_big	2020-03-14 14:32:52.439921000 +0200
 @@ -0,0 +1 @@
 +{"type":"bytes","logicalType":"decimal","precision":5,"scale":10}
 diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_unsupported avro-1.9.2/lang/c/tests/schema_tests/fail/logical_unsupported
 --- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_unsupported	1970-01-01 02:00:00.000000000 +0200
-+++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_unsupported	2020-03-11 11:22:35.694385200 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_unsupported	2020-03-14 14:32:52.441921400 +0200
 @@ -0,0 +1 @@
 +{"type":"fixed","logicalType": "unsupported"}
 diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_wrong_base_type avro-1.9.2/lang/c/tests/schema_tests/fail/logical_wrong_base_type
 --- avro-1.9.2.orig/lang/c/tests/schema_tests/fail/logical_wrong_base_type	1970-01-01 02:00:00.000000000 +0200
-+++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_wrong_base_type	2020-03-11 11:22:35.697392700 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/fail/logical_wrong_base_type	2020-03-14 14:32:52.443921300 +0200
 @@ -0,0 +1 @@
 +{"type":"long","logicalType": "decimal","precision": 10}
 diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/pass/logical_types avro-1.9.2/lang/c/tests/schema_tests/pass/logical_types
 --- avro-1.9.2.orig/lang/c/tests/schema_tests/pass/logical_types	1970-01-01 02:00:00.000000000 +0200
-+++ avro-1.9.2/lang/c/tests/schema_tests/pass/logical_types	2020-03-11 11:22:35.699386000 +0200
++++ avro-1.9.2/lang/c/tests/schema_tests/pass/logical_types	2020-03-14 14:32:52.445921400 +0200
 @@ -0,0 +1,10 @@
 +{"type": "record", "name": "org.apache.avro.tests.LogicalTypes", "fields": [
 +  {"name":"f1","type":{"type":"bytes","logicalType":"decimal","precision":12,"scale":6}},
@@ -1319,7 +1667,7 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/schema_tests/pass/logical_types avro-1.9.
 +]}
 diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1084.c avro-1.9.2/lang/c/tests/test_avro_1084.c
 --- avro-1.9.2.orig/lang/c/tests/test_avro_1084.c	2020-03-11 09:31:30.996145500 +0200
-+++ avro-1.9.2/lang/c/tests/test_avro_1084.c	2020-03-11 11:22:35.700389000 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_1084.c	2020-03-14 14:32:52.447921400 +0200
 @@ -52,7 +52,8 @@
  
  	// crash
@@ -1340,7 +1688,7 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1084.c avro-1.9.2/lang/c/tests/
  
 diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1087.c avro-1.9.2/lang/c/tests/test_avro_1087.c
 --- avro-1.9.2.orig/lang/c/tests/test_avro_1087.c	2020-03-11 09:31:30.994167800 +0200
-+++ avro-1.9.2/lang/c/tests/test_avro_1087.c	2020-03-11 11:22:35.702356100 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_1087.c	2020-03-14 14:32:52.448921400 +0200
 @@ -31,7 +31,8 @@
  void add_record (avro_file_writer_t writer)
  {
@@ -1370,7 +1718,7 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1087.c avro-1.9.2/lang/c/tests/
  
 diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1237.c avro-1.9.2/lang/c/tests/test_avro_1237.c
 --- avro-1.9.2.orig/lang/c/tests/test_avro_1237.c	2020-03-11 09:31:30.988143000 +0200
-+++ avro-1.9.2/lang/c/tests/test_avro_1237.c	2020-03-11 11:22:35.703356100 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_1237.c	2020-03-14 14:32:52.449921000 +0200
 @@ -56,6 +56,7 @@
  int main(void)
  {
@@ -1400,7 +1748,7 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1237.c avro-1.9.2/lang/c/tests/
  }
 diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1238.c avro-1.9.2/lang/c/tests/test_avro_1238.c
 --- avro-1.9.2.orig/lang/c/tests/test_avro_1238.c	2020-03-11 09:31:30.913143400 +0200
-+++ avro-1.9.2/lang/c/tests/test_avro_1238.c	2020-03-11 11:22:35.704385500 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_1238.c	2020-03-14 14:32:52.450921400 +0200
 @@ -65,6 +65,7 @@
  int main(void)
  {
@@ -1430,7 +1778,7 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_1238.c avro-1.9.2/lang/c/tests/
  }
 diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_data.c avro-1.9.2/lang/c/tests/test_avro_data.c
 --- avro-1.9.2.orig/lang/c/tests/test_avro_data.c	2020-03-11 09:31:30.902142400 +0200
-+++ avro-1.9.2/lang/c/tests/test_avro_data.c	2020-03-11 11:22:35.705387500 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_data.c	2020-03-14 14:32:52.452397400 +0200
 @@ -186,15 +186,15 @@
  	avro_datum_t datum;
  	avro_datum_t expected_datum;
@@ -1548,7 +1896,7 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_data.c avro-1.9.2/lang/c/tests/
  		i++;
 diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_schema.c avro-1.9.2/lang/c/tests/test_avro_schema.c
 --- avro-1.9.2.orig/lang/c/tests/test_avro_schema.c	2020-03-11 09:31:30.980172900 +0200
-+++ avro-1.9.2/lang/c/tests/test_avro_schema.c	2020-03-11 11:22:35.706387000 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_schema.c	2020-03-14 14:32:52.452921000 +0200
 @@ -47,14 +47,16 @@
  		fprintf(stderr, "Unable to open '%s'\n", dirpath);
  		exit(EXIT_FAILURE);
@@ -1660,3 +2008,143 @@ diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_schema.c avro-1.9.2/lang/c/test
  	avro_schema_decref(schema);
  	return 0;
  }
+diff -Nru avro-1.9.2.orig/lang/c/tests/test_avro_values.c avro-1.9.2/lang/c/tests/test_avro_values.c
+--- avro-1.9.2.orig/lang/c/tests/test_avro_values.c	2020-03-11 09:31:30.986143700 +0200
++++ avro-1.9.2/lang/c/tests/test_avro_values.c	2020-03-14 14:32:52.454921700 +0200
+@@ -451,16 +451,20 @@
+ static int
+ test_bytes(void)
+ {
++  avro_schema_t bytes_schema = avro_schema_bytes();
++	avro_value_iface_t  *bytes_class =
++	    avro_generic_class_from_schema(bytes_schema);
++
+ 	int  rval;
+ 
+ 	char bytes[] = { 0xDE, 0xAD, 0xBE, 0xEF };
+ 
+ 	avro_value_t  val;
+-	try(avro_generic_bytes_new(&val, bytes, sizeof(bytes)),
++	try(avro_generic_value_new(bytes_class, &val),
+ 	    "Cannot create bytes");
+ 	check(rval, check_type_and_schema
+ 		    ("bytes", &val,
+-		     AVRO_BYTES, avro_schema_bytes()));
++		     AVRO_BYTES, avro_schema_incref(bytes_schema)));
+ 	try(avro_value_reset(&val),
+ 	    "Cannot reset bytes");
+ 	try(avro_value_set_bytes(&val, bytes, sizeof(bytes)),
+@@ -505,12 +509,18 @@
+ 	avro_value_t  val1;
+ 	avro_value_t  val2;
+ 	avro_value_t  val3;
+-	try(avro_generic_bytes_new(&val1, "abcd", 4),
++	try(avro_generic_value_new(bytes_class, &val1),
+ 	    "Cannot create bytes");
+-	try(avro_generic_bytes_new(&val2, "abcde", 5),
++	try(avro_value_set_bytes(&val1, "abcd", 4),
++	    "Cannot set bytes");
++	try(avro_generic_value_new(bytes_class, &val2),
+ 	    "Cannot create bytes");
+-	try(avro_generic_bytes_new(&val3, "abce", 4),
++	try(avro_value_set_bytes(&val2, "abcde", 5),
++	    "Cannot set bytes");
++	try(avro_generic_value_new(bytes_class, &val3),
+ 	    "Cannot create bytes");
++	try(avro_value_set_bytes(&val3, "abce", 4),
++	    "Cannot set bytes");
+ 	if (avro_value_cmp_fast(&val1, &val2) >= 0) {
+ 		fprintf(stderr, "Incorrect sort order\n");
+ 		return EXIT_FAILURE;
+@@ -530,6 +540,8 @@
+ 	avro_value_decref(&val1);
+ 	avro_value_decref(&val2);
+ 	avro_value_decref(&val3);
++	avro_schema_decref(bytes_schema);
++	avro_value_iface_decref(bytes_class);
+ 
+ 	return 0;
+ }
+@@ -609,17 +621,20 @@
+ static int
+ test_int(void)
+ {
++	avro_schema_t int_schema = avro_schema_int();
++	avro_value_iface_t	*int_class =
++	    avro_generic_class_from_schema(int_schema);
+ 	int  rval;
+ 
+ 	int  i;
+ 	for (i = 0; i < 100; i++) {
+ 		int32_t  expected = rand_int32();
+ 		avro_value_t  val;
+-		try(avro_generic_int_new(&val, expected),
++		try(avro_generic_value_new(int_class, &val),
+ 		    "Cannot create int");
+ 		check(rval, check_type_and_schema
+ 			    ("int", &val,
+-			     AVRO_INT32, avro_schema_int()));
++			     AVRO_INT32, avro_schema_incref(int_schema)));
+ 		try(avro_value_reset(&val),
+ 		    "Cannot reset int");
+ 		try(avro_value_set_int(&val, expected),
+@@ -642,10 +657,14 @@
+ 
+ 	avro_value_t  val1;
+ 	avro_value_t  val2;
+-	try(avro_generic_int_new(&val1, -10),
+-	    "Cannot create int");
+-	try(avro_generic_int_new(&val2, 42),
+-	    "Cannot create int");
++  try(avro_generic_value_new(int_class, &val1),
++      "Cannot create int");
++	try(avro_value_set_int(&val1, -10),
++	    "Cannot set int");
++  try(avro_generic_value_new(int_class, &val2),
++      "Cannot create int");
++	try(avro_value_set_int(&val2, 42),
++	    "Cannot set int");
+ 	if (avro_value_cmp_fast(&val1, &val2) >= 0) {
+ 		fprintf(stderr, "Incorrect sort order\n");
+ 		return EXIT_FAILURE;
+@@ -660,6 +679,8 @@
+ 	}
+ 	avro_value_decref(&val1);
+ 	avro_value_decref(&val2);
++  avro_schema_decref(int_schema);
++	avro_value_iface_decref(int_class);
+ 
+ 	return 0;
+ }
+@@ -667,17 +688,20 @@
+ static int
+ test_long(void)
+ {
++	avro_schema_t long_schema = avro_schema_long();
++	avro_value_iface_t  *long_class =
++	    avro_generic_class_from_schema(long_schema);
+ 	int  rval;
+ 
+ 	int  i;
+ 	for (i = 0; i < 100; i++) {
+ 		int64_t  expected = rand_int64();
+ 		avro_value_t  val;
+-		try(avro_generic_long_new(&val, expected),
++		try(avro_generic_value_new(long_class, &val),
+ 		    "Cannot create long");
+ 		check(rval, check_type_and_schema
+ 			    ("long", &val,
+-			     AVRO_INT64, avro_schema_long()));
++			     AVRO_INT64, avro_schema_incref(long_schema)));
+ 		try(avro_value_reset(&val),
+ 		    "Cannot reset long");
+ 		try(avro_value_set_long(&val, expected),
+@@ -697,6 +721,8 @@
+ 		check_copy(&val);
+ 		avro_value_decref(&val);
+ 	}
++  avro_schema_decref(long_schema);
++	avro_value_iface_decref(long_class);
+ 	return 0;
+ }
+ 
